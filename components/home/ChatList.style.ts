@@ -4,16 +4,11 @@ import { StyleSheet } from "react-native";
 export const styles = StyleSheet.create({
     container: {
         flex: 1,
-
-        marginTop: 28,
-
+        marginTop: 10,
         backgroundColor: "#FFFFFF",
-
         borderTopLeftRadius: 36,
         borderTopRightRadius: 36,
-
         paddingTop: 26,
-
         shadowColor: "#000",
         shadowOffset: {
             width: 0,
@@ -21,18 +16,16 @@ export const styles = StyleSheet.create({
         },
         shadowOpacity: 0.08,
         shadowRadius: 16,
-
         elevation: 12,
     },
 
     header: {
         paddingHorizontal: 22,
-
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
 
-        marginBottom: 16,
+        marginBottom: 8,
     },
 
     title: {
@@ -49,5 +42,17 @@ export const styles = StyleSheet.create({
 
     list: {
         paddingBottom: 120,
+    },
+    
+    refreshHint: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    refreshHintText: {
+        fontSize: 11,
+        color: "#B0B0B0",
+        marginLeft: 4,
     },
 });
