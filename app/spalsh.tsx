@@ -1,8 +1,10 @@
 import { styles } from "@/styles/splash.style";
+import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
 
 export default function Splash() {
+    const router = useRouter();
     const logoScale = useRef(new Animated.Value(0.6)).current;
     const logoOpacity = useRef(new Animated.Value(0)).current;
 
@@ -43,6 +45,12 @@ export default function Splash() {
             ]),
         ]).start();
     }, [logoOpacity, logoScale, titleOpacity, titleTranslateY]);
+
+    useEffect(()=>{
+        setTimeout(() => {
+            router.replace('/onboarding');
+        }, 3000);
+    },[]);
 
     return (
         <Animated.View style={styles.container}>
