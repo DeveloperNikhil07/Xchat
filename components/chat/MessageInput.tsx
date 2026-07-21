@@ -6,15 +6,12 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { styles } from "./MessageInput.style";
 
-interface MessageInputProps {
-    onSend?: (message: string) => void;
-    onEmojiPress?: () => void;
-    onAttachmentPress?: () => void;
-    onCameraPress?: () => void;
-    onVoicePress?: () => void;
-}
+import { MessageInputProps } from "@/types/chat/MessageInputs/MessageInput";
+import { styles } from "./MessageInput.style";
+import ReplyPreview from "./Reply/ReplyPreview";
+
+
 
 export default function MessageInput({
     onSend,
@@ -22,8 +19,9 @@ export default function MessageInput({
     onAttachmentPress,
     onCameraPress,
     onVoicePress,
+    replyMessage,
+    setReplyMessage,
 }: MessageInputProps) {
-
     const [message, setMessage] = useState("");
 
     const handleSend = () => {
@@ -38,77 +36,87 @@ export default function MessageInput({
 
     return (
         <View style={styles.container}>
-
             <View style={styles.inputContainer}>
 
-                {/* Emoji */}
-
-                <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={onEmojiPress}
-                >
-                    <Ionicons
-                        name="happy-outline"
-                        size={24}
-                        color={Colors.textSecondary}
+                {replyMessage && (
+                    <ReplyPreview
+                        senderName={replyMessage.sender}
+                        message={replyMessage.message}
+                        onClose={() => setReplyMessage(null)}
                     />
-                </TouchableOpacity>
+                )}
 
-                {/* Input */}
+                <View style={styles.inputRow}>
 
-                <TextInput
-                    value={message}
-                    onChangeText={setMessage}
-                    placeholder="Type a message..."
-                    placeholderTextColor="#999"
-                    multiline
-                    scrollEnabled
-                    textAlignVertical="top"
-                    style={styles.input}
-                />
+                    {/* Emoji */}
 
-                {/* Attachment */}
-
-                <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={onAttachmentPress}
-                >
-                    <Ionicons
-                        name="attach"
-                        size={22}
-                        color={Colors.textSecondary}
-                    />
-                </TouchableOpacity>
-
-                {/* Camera / Send */}
-
-                {message.trim().length === 0 ? (
                     <TouchableOpacity
                         style={styles.iconButton}
-                        onPress={onCameraPress}
+                        onPress={onEmojiPress}
                     >
                         <Ionicons
-                            name="camera-outline"
+                            name="happy-outline"
                             size={24}
                             color={Colors.textSecondary}
                         />
                     </TouchableOpacity>
-                ) : (
+
+                    {/* Input */}
+
+                    <TextInput
+                        value={message}
+                        onChangeText={setMessage}
+                        placeholder="Type a message..."
+                        placeholderTextColor="#999"
+                        multiline
+                        scrollEnabled
+                        textAlignVertical="top"
+                        style={styles.input}
+                    />
+
+                    {/* Attachment */}
+
                     <TouchableOpacity
-                        style={styles.sendButton}
-                        onPress={handleSend}
+                        style={styles.iconButton}
+                        onPress={onAttachmentPress}
                     >
                         <Ionicons
-                            name="send"
-                            size={20}
-                            color="#FFF"
+                            name="attach"
+                            size={22}
+                            color={Colors.textSecondary}
                         />
                     </TouchableOpacity>
-                )}
 
+                    {/* Camera / Send */}
+
+                    {message.trim().length === 0 ? (
+                        <TouchableOpacity
+                            style={styles.iconButton}
+                            onPress={onCameraPress}
+                        >
+                            <Ionicons
+                                name="camera-outline"
+                                size={24}
+                                color={Colors.textSecondary}
+                            />
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            style={styles.sendButton}
+                            onPress={handleSend}
+                        >
+                            <Ionicons
+                                name="send"
+                                size={20}
+                                color="#FFF"
+                            />
+                        </TouchableOpacity>
+                    )}
+
+                </View>
             </View>
 
-            {/* Voice Button */}
+            {/* Voice */}
 
             {message.trim().length === 0 && (
                 <TouchableOpacity
@@ -122,7 +130,6 @@ export default function MessageInput({
                     />
                 </TouchableOpacity>
             )}
-
         </View>
     );
 }
