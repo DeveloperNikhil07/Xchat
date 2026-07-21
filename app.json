@@ -39,6 +39,21 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      "expo-audio",
+      "expo-web-browser",
+      "expo-video",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location to share it in chats."
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow $(PRODUCT_NAME) to access your contacts to share them in chats."
+        }
       ]
     ],
     "experiments": {

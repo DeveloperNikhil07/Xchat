@@ -58,8 +58,6 @@ export const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "flex-end",
         alignItems: "center",
-
-        marginTop: 8,
     },
 
     time: {
@@ -70,5 +68,26 @@ export const styles = StyleSheet.create({
 
     senderTime: {
         color: "rgba(255,255,255,.75)",
+    },
+    reactionContainer: {
+        position: "absolute",
+        bottom: -10,
+        backgroundColor: "#FFF",
+        borderRadius: 12,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        elevation: 2,
+    },
+
+    senderReaction: {
+        right: 8,
+    },
+
+    receiverReaction: {
+        left: 8,
+    },
+
+    reactionText: {
+        fontSize: 14,
     },
 });
