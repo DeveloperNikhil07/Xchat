@@ -16,7 +16,7 @@ export const styles = StyleSheet.create({
 
     borderRadius: 32,
 
-    paddingHorizontal: 24,
+    paddingHorizontal: 14,
     paddingVertical: 32,
 
     shadowColor: "#000",
@@ -31,8 +31,8 @@ export const styles = StyleSheet.create({
   },
 
   logoWrapper: {
-    width: 92,
-    height: 92,
+    width: 72,
+    height: 72,
 
     borderRadius: 46,
 
@@ -41,17 +41,17 @@ export const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
 
-    marginBottom: 22,
+    marginBottom: 12,
   },
 
   logo: {
-    width: 52,
-    height: 52,
+    width: 42,
+    height: 42,
     resizeMode: "contain",
   },
 
   title: {
-    fontSize: 27,
+    fontSize: 21,
     fontWeight: "700",
 
     color: Colors.textPrimary,
@@ -60,7 +60,7 @@ export const styles = StyleSheet.create({
   },
 
   subtitle: {
-    marginTop: 14,
+    marginTop: 8,
 
     textAlign: "center",
 
@@ -68,7 +68,7 @@ export const styles = StyleSheet.create({
 
     lineHeight: 24,
 
-    fontSize: 15,
+    fontSize: 14,
   },
 
   divider: {
@@ -76,7 +76,7 @@ export const styles = StyleSheet.create({
 
     backgroundColor: "#ECECEC",
 
-    marginVertical: 28,
+    marginVertical: 22,
   },
 
   chatPreview: {
@@ -92,16 +92,16 @@ export const styles = StyleSheet.create({
 
     borderBottomLeftRadius: 8,
 
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 12,
 
-    marginBottom: 14,
+    marginBottom: 12,
 
     maxWidth: "78%",
   },
 
   leftText: {
-    fontSize: 15,
+    fontSize: 13,
 
     color: Colors.textPrimary,
   },
@@ -115,10 +115,10 @@ export const styles = StyleSheet.create({
 
     borderBottomRightRadius: 8,
 
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 12,
 
-    marginBottom: 14,
+    marginBottom: 12,
 
     maxWidth: "78%",
   },
@@ -126,7 +126,7 @@ export const styles = StyleSheet.create({
   rightText: {
     color: "#FFFFFF",
 
-    fontSize: 15,
+    fontSize: 13,
   },
 
   bottomDivider: {
@@ -135,13 +135,13 @@ export const styles = StyleSheet.create({
     backgroundColor: "#ECECEC",
 
     marginTop: 12,
-    marginBottom: 22,
+    marginBottom: 12,
   },
 
   hint: {
     textAlign: "center",
 
-    fontSize: 15,
+    fontSize: 13,
 
     color: Colors.textSecondary,
 
@@ -153,6 +153,6 @@ export const styles = StyleSheet.create({
 
     fontWeight: "700",
 
-    fontSize: 18,
+    fontSize: 20,
   },
 });

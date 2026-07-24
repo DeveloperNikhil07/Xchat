@@ -7,7 +7,8 @@ import RecentUsers from "@/components/home/RecentUsers";
 import RecentUsersSkeleton from "@/components/home/RecentUsersSkeleton";
 import ScreenContainer from "@/components/layout/ScreenContainer";
 import SearchBar from "@/components/ui/SearchBar";
-import { useEffect, useState } from "react";
+import { useChats } from "@/hooks/useChats";
+import { useMemo, useState } from "react";
 import { View } from "react-native";
 
 const filters = [
@@ -20,48 +21,31 @@ const filters = [
 export default function Home() {
     const [search, setSearch] = useState("");
     const [selectedFilter, setSelectedFilter] = useState("all");
-    const [refreshing, setRefreshing] = useState(false);
-    const [loading, setLoading] = useState(true);
 
-    // Pehli baar screen open hote hi data load karna
-    useEffect(() => {
-        const loadInitialData = async () => {
-            // TODO:
-            // Firebase se chats/recent users fetch hongi
+    const { chats, loading, refreshing, refresh } = useChats();
 
-            await new Promise(resolve => setTimeout(resolve, 1500));
+    // Search + filter dono client-side. FIREBASE INTEGRATION: agar list bahut badi ho
+    // jaye to name-search ke liye Firestore me alag se "nameLower" field indexed rakh
+    // ke query karna, lekin chhoti/medium list ke liye ye tarika fast aur simple hai.
+    const filteredChats = useMemo(() => {
+        return chats.filter((chat) => {
+            const matchSearch = chat.name.toLowerCase().includes(search.toLowerCase());
+            if (!matchSearch) return false;
 
-            setLoading(false);
-        };
+            if (selectedFilter === "unread") return chat.unread > 0;
+            if (selectedFilter === "groups") return chat.type === "group";
+            if (selectedFilter === "archived") return chat.archived;
 
-        loadInitialData();
-    }, []);
-
-    const onRefresh = async () => {
-        setRefreshing(true);
-        setLoading(true);
-        // TODO:
-        // Firebase se chats dubara fetch hongi
-
-        await new Promise(resolve => setTimeout(resolve, 1500));
-
-        setRefreshing(false);
-        setLoading(false);
-    };
+            return true;
+        });
+    }, [chats, search, selectedFilter]);
 
     return (
         <ScreenContainer>
             {/* Ye sab fixed rahenge, scroll nahi honge */}
-            <HomeHeader
-                userName="John Doe"
-                onSearch={() => { }}
-                onMenu={() => { }}
-            />
+            <HomeHeader userName="John Doe"/>
 
-            <SearchBar
-                value={search}
-                onChangeText={setSearch}
-            />
+            <SearchBar value={search} onChangeText={setSearch} />
 
             {loading ? <RecentUsersSkeleton /> : <RecentUsers />}
 
@@ -73,14 +57,15 @@ export default function Home() {
                 />
             </View>
 
-            {/* Sirf ye area scroll karega, apna original design ke saath */}
+            {/* Sirf ye area scroll karega */}
             <View style={{ flex: 1 }}>
                 {loading ? (
                     <ChatListSkeleton />
                 ) : (
                     <ChatList
+                        chats={filteredChats}
                         refreshing={refreshing}
-                        onRefresh={onRefresh}
+                        onRefresh={refresh}
                     />
                 )}
             </View>
