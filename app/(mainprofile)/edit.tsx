@@ -2,6 +2,7 @@ import Header from "@/components/common/Header";
 import ProfileAvatar from "@/components/mainProfile/ProfileAvatar";
 import { Colors } from "@/constants/theme";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { pickImage } from "@/services/imagePicker.service";
 import { styles } from "@/styles/EditProfile.style";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,11 +22,12 @@ export default function EditProfileScreen() {
         profile,
         loading,
         saving,
+        uploadingAvatar,
         saveProfile,
         changeAvatar,
     } = useUserProfile();
 
-    const [name, setName] = useState("");
+    const [displayName, setDisplayName] = useState("");
     const [username, setUsername] = useState("");
     const [bio, setBio] = useState("");
     const [phone, setPhone] = useState("");
@@ -34,7 +36,7 @@ export default function EditProfileScreen() {
     useEffect(() => {
         if (!profile) return;
 
-        setName(profile.name);
+        setDisplayName(profile.displayName);
         setUsername(profile.username);
         setBio(profile.bio);
         setPhone(profile.phone);
@@ -42,14 +44,15 @@ export default function EditProfileScreen() {
     }, [profile]);
 
     const handleAvatarEdit = async () => {
-        // TODO:
-        // Pick image then
-        // await changeAvatar(uri);
+        const uri = await pickImage();
+        if (!uri) return;
+
+        await changeAvatar(uri);
     };
 
     const handleSave = async () => {
         const success = await saveProfile({
-            name,
+            displayName,
             username,
             bio,
             phone,
@@ -74,12 +77,7 @@ export default function EditProfileScreen() {
 
     return (
         <LinearGradient
-            colors={[
-                "#07111A",
-                "#0C1823",
-                "#122434",
-                "#08121A",
-            ]}
+            colors={["#07111A", "#0C1823", "#122434", "#08121A"]}
             style={styles.container}
         >
             <Header
@@ -92,15 +90,10 @@ export default function EditProfileScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.content}
             >
-
-                {/* Avatar */}
-
                 <View style={styles.avatarSection}>
-
                     <View style={styles.avatarWrapper}>
-
                         <ProfileAvatar
-                            imageUri={profile.avatarUri}
+                            imageUri={profile.photoURL}
                             editable
                             onEditPress={handleAvatarEdit}
                         />
@@ -108,29 +101,32 @@ export default function EditProfileScreen() {
                         <Pressable
                             style={styles.cameraButton}
                             onPress={handleAvatarEdit}
+                            disabled={uploadingAvatar}
                         >
-                            <Feather
-                                name="camera"
-                                color="#fff"
-                                size={18}
-                            />
+                            {uploadingAvatar ? (
+                                <ActivityIndicator
+                                    size="small"
+                                    color="#fff"
+                                />
+                            ) : (
+                                <Feather
+                                    name="camera"
+                                    color="#fff"
+                                    size={18}
+                                />
+                            )}
                         </Pressable>
-
                     </View>
 
                     <Text style={styles.changePhoto}>
-                        Change Profile Photo
+                        {uploadingAvatar
+                            ? "Uploading..."
+                            : "Change Profile Photo"}
                     </Text>
-
                 </View>
 
-                {/* Profile */}
-
                 <View style={styles.card}>
-
-                    <Text style={styles.cardTitle}>
-                        Profile
-                    </Text>
+                    <Text style={styles.cardTitle}>Profile</Text>
 
                     <Field
                         icon={
@@ -141,8 +137,8 @@ export default function EditProfileScreen() {
                             />
                         }
                         label="Full Name"
-                        value={name}
-                        onChangeText={setName}
+                        value={displayName}
+                        onChangeText={setDisplayName}
                     />
 
                     <Field
@@ -158,16 +154,10 @@ export default function EditProfileScreen() {
                         onChangeText={setUsername}
                         autoCapitalize="none"
                     />
-
                 </View>
 
-                {/* About */}
-
                 <View style={styles.card}>
-
-                    <Text style={styles.cardTitle}>
-                        About
-                    </Text>
+                    <Text style={styles.cardTitle}>About</Text>
 
                     <Field
                         icon={
@@ -182,16 +172,10 @@ export default function EditProfileScreen() {
                         onChangeText={setBio}
                         multiline
                     />
-
                 </View>
 
-                {/* Contact */}
-
                 <View style={styles.card}>
-
-                    <Text style={styles.cardTitle}>
-                        Contact
-                    </Text>
+                    <Text style={styles.cardTitle}>Contact</Text>
 
                     <Field
                         icon={
@@ -221,7 +205,6 @@ export default function EditProfileScreen() {
                         keyboardType="email-address"
                         autoCapitalize="none"
                     />
-
                 </View>
 
                 <Pressable
@@ -237,9 +220,7 @@ export default function EditProfileScreen() {
                         </Text>
                     )}
                 </Pressable>
-
             </ScrollView>
-
         </LinearGradient>
     );
 }
@@ -263,19 +244,11 @@ function Field({
     keyboardType = "default",
     autoCapitalize = "sentences",
 }: FieldProps) {
-
     return (
-
         <View style={styles.field}>
-
             <View style={styles.fieldHeader}>
-
                 {icon}
-
-                <Text style={styles.label}>
-                    {label}
-                </Text>
-
+                <Text style={styles.label}>{label}</Text>
             </View>
 
             <TextInput
@@ -286,13 +259,8 @@ function Field({
                 keyboardType={keyboardType}
                 autoCapitalize={autoCapitalize}
                 multiline={multiline}
-                style={[
-                    styles.input,
-                    multiline && styles.bioInput,
-                ]}
+                style={[styles.input, multiline && styles.bioInput]}
             />
-
         </View>
-
     );
 }

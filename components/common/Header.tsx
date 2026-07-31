@@ -30,22 +30,23 @@ export default function Header({
       />
 
       <View style={styles.container}>
+        {/* Left */}
+        <View style={styles.side}>
+          <TouchableOpacity
+            activeOpacity={0.7}
+            hitSlop={12}
+            style={styles.touch}
+            onPress={onBack}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={20}
+              color={iconColor}
+            />
+          </TouchableOpacity>
+        </View>
 
-        {/* Back */}
-
-        <TouchableOpacity
-          activeOpacity={0.7}
-          hitSlop={12}
-          style={styles.touch}
-          onPress={onBack}
-        >
-          <Ionicons
-            name="arrow-back"
-            size={20}
-            color={iconColor}
-          />
-        </TouchableOpacity>
-
+        {/* Center Title */}
         <Text
           numberOfLines={1}
           style={[
@@ -57,24 +58,22 @@ export default function Header({
         </Text>
 
         {/* Right */}
-
-        {rightIcon ? (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            hitSlop={12}
-            style={styles.touch}
-            onPress={onRightPress}
-          >
-            <Ionicons
-              name={rightIcon}
-              size={20}
-              color={iconColor}
-            />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.empty} />
-        )}
-
+        <View style={styles.side}>
+          {rightIcon ? (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              hitSlop={12}
+              style={styles.touch}
+              onPress={onRightPress}
+            >
+              <Ionicons
+                name={rightIcon}
+                size={20}
+                color={iconColor}
+              />
+            </TouchableOpacity>
+          ) : null}
+        </View>
       </View>
     </>
   );

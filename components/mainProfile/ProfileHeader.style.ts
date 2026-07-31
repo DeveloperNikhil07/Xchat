@@ -10,10 +10,10 @@ export const styles = StyleSheet.create({
 
         alignItems: "center",
 
-        paddingTop: 35,
-        paddingBottom: 28,
+        paddingTop: 20,
+        paddingBottom: 10,
 
-        paddingHorizontal: 24,
+        paddingHorizontal: 12,
 
         overflow: "hidden",
 

@@ -1,71 +1,72 @@
-import { fetchUserProfile, updateUserProfile, uploadAvatar } from "@/services/userService";
-import { UpdatableUserProfile, UserProfile } from "@/types/users/user";
-import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { uploadToCloudinary } from "@/services/cloudinary";
+import {
+    UpdateUserPayload,
+    updateUserDocument,
+} from "@/services/user.service";
+import { useState } from "react";
+import { Alert } from "react-native";
 
-interface UseUserProfileResult {
-    profile: UserProfile | null;
-    loading: boolean;
-    saving: boolean;
-    error: string | null;
-    refresh: () => Promise<void>;
-    saveProfile: (updates: Partial<UpdatableUserProfile>) => Promise<boolean>;
-    changeAvatar: (localUri: string) => Promise<boolean>;
-}
+export const useUserProfile = () => {
+    const { currentUser, firebaseUser, loading, refreshUser } = useAuth();
 
-export function useUserProfile(): UseUserProfileResult {
-    const [profile, setProfile] = useState<UserProfile | null>(null);
-    const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-    const load = useCallback(async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const data = await fetchUserProfile();
-            setProfile(data);
-        } catch (e) {
-            setError("Profile load nahi ho paya");
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+    const saveProfile = async (
+        data: UpdateUserPayload
+    ): Promise<boolean> => {
+        if (!firebaseUser) return false;
 
-    useEffect(() => {
-        load();
-    }, [load]);
-
-    const saveProfile = useCallback(
-        async (updates: Partial<UpdatableUserProfile>) => {
-            try {
-                setSaving(true);
-                const updated = await updateUserProfile(updates);
-                setProfile(updated);
-                return true;
-            } catch (e) {
-                setError("Profile save nahi ho paya");
-                return false;
-            } finally {
-                setSaving(false);
-            }
-        },
-        []
-    );
-
-    const changeAvatar = useCallback(async (localUri: string) => {
         try {
             setSaving(true);
-            const url = await uploadAvatar(localUri);
-            const updated = await updateUserProfile({ avatarUri: url });
-            setProfile(updated);
+
+            await updateUserDocument(firebaseUser.uid, data);
+            await refreshUser();
+
             return true;
-        } catch (e) {
-            setError("Photo update nahi ho paya");
+        } catch (error: any) {
+            console.log("saveProfile Error:", error);
+            Alert.alert(
+                "Error",
+                error.message || "Failed to save profile."
+            );
             return false;
         } finally {
             setSaving(false);
         }
-    }, []);
+    };
 
-    return { profile, loading, saving, error, refresh: load, saveProfile, changeAvatar };
-}
+    const changeAvatar = async (fileUri: string): Promise<boolean> => {
+        if (!firebaseUser) return false;
+
+        try {
+            setUploadingAvatar(true);
+
+            const result = await uploadToCloudinary(fileUri, "image");
+
+            await updateUserDocument(firebaseUser.uid, {
+                photoURL: result.secure_url,
+            });
+
+            await refreshUser();
+
+            return true;
+        } catch (error) {
+            console.log("changeAvatar Error:", error);
+            Alert.alert("Error", "Failed to update profile photo.");
+            return false;
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
+
+    return {
+        profile: currentUser,
+        loading,
+        saving,
+        uploadingAvatar,
+        saveProfile,
+        changeAvatar,
+    };
+};

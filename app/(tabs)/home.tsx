@@ -7,6 +7,7 @@ import RecentUsers from "@/components/home/RecentUsers";
 import RecentUsersSkeleton from "@/components/home/RecentUsersSkeleton";
 import ScreenContainer from "@/components/layout/ScreenContainer";
 import SearchBar from "@/components/ui/SearchBar";
+import { useAuth } from "@/hooks/useAuth";
 import { useChats } from "@/hooks/useChats";
 import { useMemo, useState } from "react";
 import { View } from "react-native";
@@ -19,6 +20,8 @@ const filters = [
 ];
 
 export default function Home() {
+    const { currentUser } = useAuth();
+    console.log(currentUser)
     const [search, setSearch] = useState("");
     const [selectedFilter, setSelectedFilter] = useState("all");
 
@@ -43,7 +46,7 @@ export default function Home() {
     return (
         <ScreenContainer>
             {/* Ye sab fixed rahenge, scroll nahi honge */}
-            <HomeHeader userName="John Doe"/>
+            <HomeHeader userName={currentUser?.displayName||''}/>
 
             <SearchBar value={search} onChangeText={setSearch} />
 

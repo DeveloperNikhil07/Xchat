@@ -3,22 +3,52 @@ import ProfileHeader from "@/components/mainProfile/ProfileHeader";
 import InfoCard from "@/components/profile/InfoCard";
 import InfoRow from "@/components/profile/InfoRow";
 import { Colors } from "@/constants/theme";
+import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
+import { pickImage } from "@/services/imagePicker.service";
 import { router } from "expo-router";
-import { ActivityIndicator, ScrollView, View } from "react-native";
-import { styles } from '../../styles/MyProfile.style';
+import {
+    ActivityIndicator,
+    ScrollView,
+    View,
+} from "react-native";
+
+import { styles } from "../../styles/MyProfile.style";
+
 export default function MyProfileScreen() {
-    const { profile, loading, changeAvatar } = useUserProfile();
+    const { currentUser, loading, logout } = useAuth();
+    const { changeAvatar, uploadingAvatar } = useUserProfile();
 
     const handleAvatarEdit = async () => {
-        // TODO: expo-image-picker se photo pick karke changeAvatar(uri) call karna
-        // ye already location/document pickers me pattern use kiya hai, wahi copy kar lena
+        const uri = await pickImage();
+        if (!uri) return;
+
+        await changeAvatar(uri);
     };
 
-    if (loading || !profile) {
+    const handleLogout = async () => {
+        try {
+            await logout();
+            router.replace("/(auth)/login");
+        } catch (error) {
+            console.log(error);
+        }
+    };
+
+    if (loading || !currentUser) {
         return (
-            <View style={{ flex: 1, backgroundColor: Colors.background, justifyContent: "center", alignItems: "center" }}>
-                <ActivityIndicator size="large" color={Colors.brandPrimary} />
+            <View
+                style={{
+                    flex: 1,
+                    backgroundColor: Colors.background,
+                    justifyContent: "center",
+                    alignItems: "center",
+                }}
+            >
+                <ActivityIndicator
+                    size="large"
+                    color={Colors.brandPrimary}
+                />
             </View>
         );
     }
@@ -26,7 +56,7 @@ export default function MyProfileScreen() {
     return (
         <View style={styles.container}>
             <Header
-                title="Profile"
+                title={currentUser?.username||''}
                 onBack={() => router.back()}
                 iconColor="#FFF"
                 rightIcon="pencil"
@@ -38,10 +68,10 @@ export default function MyProfileScreen() {
                 contentContainerStyle={styles.content}
             >
                 <ProfileHeader
-                    name={profile.name}
-                    username={profile.username}
-                    bio={profile.bio}
-                    avatarUri={profile.avatarUri}
+                    name={currentUser.displayName}
+                    username={currentUser.username}
+                    bio={currentUser.bio}
+                    avatarUri={currentUser.photoURL}
                     onEditAvatarPress={handleAvatarEdit}
                 />
 
@@ -49,13 +79,13 @@ export default function MyProfileScreen() {
                     <InfoCard title="Personal">
                         <InfoRow
                             icon="call"
-                            label={profile.phone}
+                            label={currentUser.phone || "Not Added"}
                             onPress={() => router.push("/(mainprofile)/edit")}
                         />
 
                         <InfoRow
                             icon="mail"
-                            label={profile.email}
+                            label={currentUser.email}
                             showDivider={false}
                             onPress={() => router.push("/(mainprofile)/edit")}
                         />
@@ -89,7 +119,7 @@ export default function MyProfileScreen() {
                             danger
                             showDivider={false}
                             showChevron={false}
-                            onPress={() => { }}
+                            onPress={handleLogout}
                         />
                     </InfoCard>
                 </View>

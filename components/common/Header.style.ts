@@ -1,7 +1,6 @@
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
-
     container: {
         position: "absolute",
 
@@ -12,11 +11,21 @@ export const styles = StyleSheet.create({
         zIndex: 999,
 
         height: 56,
-
         paddingHorizontal: 18,
 
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
+    },
+
+    side: {
+        width: 42,
+        height: 42,
+
+        justifyContent: "center",
+        alignItems: "center",
+
+        zIndex: 2,
     },
 
     touch: {
@@ -31,17 +40,21 @@ export const styles = StyleSheet.create({
     },
 
     title: {
-        flex: 1,
+        position: "absolute",
 
-        marginLeft: 10,
+        left: 70,   // 18 padding + 42 side + spacing
+        right: 70,
+
+        textAlign: "center",
 
         fontSize: 22,
         fontWeight: "700",
+
+        zIndex: 1,
     },
 
     empty: {
-        width: 40,
-        height: 40,
+        width: 42,
+        height: 42,
     },
-
 });

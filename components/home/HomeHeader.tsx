@@ -11,14 +11,30 @@ interface HomeHeaderProps {
 
 export default function HomeHeader({
     userName,
-    greeting = "Good Morning 👋",
+    greeting,
 }: HomeHeaderProps) {
     const router = useRouter();
+
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+
+        if (hour >= 5 && hour < 12) {
+            return "Good Morning 👋";
+        } else if (hour >= 12 && hour < 17) {
+            return "Good Afternoon ☀️";
+        } else if (hour >= 17 && hour < 21) {
+            return "Good Evening 🌇";
+        } else {
+            return "Good Night 🌙";
+        }
+    };
 
     return (
         <View style={styles.container}>
             <View>
-                <Text style={styles.greeting}>{greeting}</Text>
+                <Text style={styles.greeting}>
+                    {greeting ?? getGreeting()}
+                </Text>
                 <Text style={styles.name}>{userName}</Text>
             </View>
 
@@ -28,7 +44,11 @@ export default function HomeHeader({
                     style={styles.iconButton}
                     onPress={() => router.push("/(mainprofile)/me")}
                 >
-                    <Ionicons name="grid-outline" size={22} color={Colors.textOnDark} />
+                    <Ionicons
+                        name="grid-outline"
+                        size={22}
+                        color={Colors.textOnDark}
+                    />
                 </TouchableOpacity>
             </View>
         </View>

@@ -1,6 +1,5 @@
-import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import ProfileAvatar from "./ProfileAvatar";
 import { styles } from "./ProfileHeader.style";
@@ -11,7 +10,7 @@ interface Props {
     bio: string;
     avatarUri: string | null;
     onEditAvatarPress?: () => void;
-    onEditProfilePress?: () => void;
+    isUploading?: boolean;
 }
 
 export default function ProfileHeader({
@@ -20,8 +19,9 @@ export default function ProfileHeader({
     bio,
     avatarUri,
     onEditAvatarPress,
-    onEditProfilePress,
+    isUploading = false,
 }: Props) {
+
     return (
         <LinearGradient
             colors={[
@@ -39,6 +39,7 @@ export default function ProfileHeader({
                     imageUri={avatarUri}
                     editable
                     onEditPress={onEditAvatarPress}
+                    isUploading={isUploading}
                 />
             </View>
 
@@ -47,10 +48,6 @@ export default function ProfileHeader({
                 numberOfLines={1}
             >
                 {name}
-            </Text>
-
-            <Text style={styles.username}>
-                @{username}
             </Text>
 
             {!!bio && (
@@ -62,20 +59,6 @@ export default function ProfileHeader({
                 </Text>
             )}
 
-            <Pressable
-                style={styles.editButton}
-                onPress={onEditProfilePress}
-            >
-                <Feather
-                    name="edit-2"
-                    size={16}
-                    color="#FFF"
-                />
-
-                <Text style={styles.editText}>
-                    Edit Profile
-                </Text>
-            </Pressable>
         </LinearGradient>
     );
 }

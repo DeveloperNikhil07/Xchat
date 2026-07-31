@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Pressable, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, View } from "react-native";
 
 import { Colors } from "@/constants/theme";
 import { styles } from "./ProfileAvatar.style";
@@ -9,6 +9,7 @@ interface Props {
     size?: number;
     editable?: boolean;
     onEditPress?: () => void;
+    isUploading?: boolean;
 }
 
 export default function ProfileAvatar({
@@ -16,6 +17,7 @@ export default function ProfileAvatar({
     size = 112,
     editable,
     onEditPress,
+    isUploading = false,
 }: Props) {
     return (
         <View style={{ width: size, height: size }}>
@@ -36,8 +38,24 @@ export default function ProfileAvatar({
             </View>
 
             {editable && (
-                <Pressable style={styles.editBadge} onPress={onEditPress} hitSlop={6}>
-                    <Ionicons name="camera" size={14} color={Colors.textOnBrand} />
+                <Pressable
+                    style={styles.editBadge}
+                    onPress={onEditPress}
+                    hitSlop={6}
+                    disabled={isUploading}
+                >
+                    {isUploading ? (
+                        <ActivityIndicator
+                            size="small"
+                            color={Colors.textOnBrand}
+                        />
+                    ) : (
+                        <Ionicons
+                            name="camera"
+                            size={14}
+                            color={Colors.textOnBrand}
+                        />
+                    )}
                 </Pressable>
             )}
         </View>
