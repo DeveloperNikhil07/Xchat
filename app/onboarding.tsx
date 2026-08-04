@@ -2,6 +2,7 @@ import Button from "@/components/ui/Button";
 import Colors from "@/constants/theme";
 import { styles } from "@/styles/onboarding.style";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useRef, useState } from "react";
@@ -30,20 +31,30 @@ const DATA = [
       "Private, secure and simple chat experience designed just for you.",
   },
 ];
-
 export default function Onboarding() {
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  const onNext = () => {
+  const onNext = async () => {
     if (currentIndex < DATA.length - 1) {
       flatListRef.current?.scrollToIndex({
         index: currentIndex + 1,
         animated: true,
       });
     } else {
-        // router.replace("/(auth)/login");
-        router.replace("/(tabs)/home");
+      try {
+        await AsyncStorage.setItem(
+          "onboardingShown",
+          "true"
+        );
+
+        router.replace("/(auth)/login");
+      } catch (error) {
+        console.log(
+          "Failed to save onboarding state:",
+          error
+        );
+      }
     }
   };
 
@@ -56,7 +67,14 @@ export default function Onboarding() {
     >
       <TouchableOpacity
         style={styles.skipBtn}
-        onPress={() => router.push("/(auth)/login")}
+        onPress={async () => {
+          await AsyncStorage.setItem(
+            "onboardingShown",
+            "true"
+          );
+
+          router.replace("/(auth)/login");
+        }}
       >
         <Text style={styles.skipText}>Skip</Text>
       </TouchableOpacity>
@@ -206,6 +224,13 @@ export default function Onboarding() {
         <Button
           title={currentIndex === 1 ? "Get Started" : "Next"}
           onPress={onNext}
+          style={{
+            backgroundColor: "#fff",
+          }}
+          textStyle={{
+            color: "#333",
+          }}
+          iconColor="#333"
         />
       </View>
     </LinearGradient>

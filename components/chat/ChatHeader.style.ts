@@ -3,7 +3,6 @@ import { StyleSheet } from "react-native";
 export const styles = StyleSheet.create({
     container: {
         height: 72,
-
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
@@ -12,12 +11,16 @@ export const styles = StyleSheet.create({
         marginBottom: 16,
     },
 
-    /* ---------- Left ---------- */
-
     leftContainer: {
         flexDirection: "row",
         alignItems: "center",
         flex: 1,
+    },
+
+    wrapper: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
     },
 
     iconButton: {
@@ -37,8 +40,9 @@ export const styles = StyleSheet.create({
         borderRadius: 26,
 
         marginLeft: 14,
+
         borderWidth: 2,
-        borderColor: "rgba(255,255,255,.18)",
+        borderColor: "rgba(255,255,255,0.18)",
     },
 
     userInfo: {
@@ -56,27 +60,46 @@ export const styles = StyleSheet.create({
         marginTop: 4,
 
         fontSize: 13,
-        color: "rgba(255,255,255,.72)",
+        color: "rgba(255,255,255,0.72)",
     },
 
-    /* ---------- Right ---------- */
+    // Search Mode
+    searchInput: {
+        flex: 1,
 
+        height: 42,
+
+        marginLeft: 10,
+        paddingHorizontal: 16,
+
+        borderRadius: 21,
+
+        color: "#FFF",
+
+        fontSize: 15,
+
+        backgroundColor: "rgba(255,255,255,0.08)",
+    },
+
+    // Right Actions
     actions: {
         flexDirection: "row",
         alignItems: "center",
+
         marginLeft: 10,
     },
 
     actionButton: {
         width: 42,
         height: 42,
+
         borderRadius: 21,
 
         justifyContent: "center",
         alignItems: "center",
 
-        marginLeft: 10,
+        marginLeft: 8,
 
-        backgroundColor: "rgba(255,255,255,.08)",
+        backgroundColor: "rgba(255,255,255,0.08)",
     },
 });

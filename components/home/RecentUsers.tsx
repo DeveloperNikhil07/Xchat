@@ -1,62 +1,72 @@
-import { FlatList, Text, TouchableOpacity, View } from "react-native";
+import {
+  FlatList,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+
+import { RecentUser } from "@/types/chat/recentUser.types";
 import RecentUserCard from "./RecentUserCard";
 import { styles } from "./RecentUsers.style";
+interface Props {
+    users: RecentUser[];
+}
 
-const users = [
-  {
-    id: "0",
-    name: "New",
-    image: null,
-    online: false,
-    isAdd: true,
-  },
-  {
-    id: "1",
-    name: "Alex",
-    image: require("@/assets/images/man.png"),
-    online: true,
-  },
-  {
-    id: "2",
-    name: "Emma",
-    image: require("@/assets/images/man.png"),
-    online: true,
-  },
-  {
-    id: "3",
-    name: "John",
-    image: require("@/assets/images/man.png"),
-    online: false,
-  },
-  {
-    id: "4",
-    name: "Sarah",
-    image: require("@/assets/images/man.png"),
-    online: true,
-  },
-];
+export default function RecentUsers({
+    users,
+}: Props) {
+    const data = [
+        {
+            uid: "new",
+            displayName: "New",
+            photoURL: "",
+            isOnline: false,
+            username: "",
+            lastSeen: 0,
+            isAdd: true,
+        },
+        ...users,
+    ];
 
-export default function RecentUsers() {
-  return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>🔥 Recent</Text>
+    return (
 
-        <TouchableOpacity activeOpacity={0.7}>
-          <Text style={styles.seeAll}>See All</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.container}>
+            <View style={styles.header}>
+                <Text style={styles.title}>
+                    🔥 Recent
+                </Text>
+                <TouchableOpacity>
+                    <Text style={styles.seeAll}>
+                        See All
+                    </Text>
+                </TouchableOpacity>
+            </View>
 
-      <FlatList
-        horizontal
-        data={users}
-        keyExtractor={(item) => item.id}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
-          <RecentUserCard {...item} />
-        )}
-      />
-    </View>
-  );
+            <FlatList
+                horizontal
+                data={data}
+                keyExtractor={(item) => item.uid}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={
+                    styles.list
+                }
+                renderItem={({ item }) => (
+                    <RecentUserCard
+                        name={
+                            item.displayName
+                        }
+                        image={
+                            item.photoURL
+                        }
+                        online={
+                            item.isOnline
+                        }
+                        isAdd={
+                            (item as any).isAdd
+                        }
+                    />
+                )}
+            />
+        </View>
+    );
 }

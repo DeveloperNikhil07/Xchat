@@ -1,19 +1,15 @@
 import { styles } from "@/styles/splash.style";
-import { useRouter } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing } from "react-native";
 
 export default function Splash() {
-    const router = useRouter();
     const logoScale = useRef(new Animated.Value(0.6)).current;
     const logoOpacity = useRef(new Animated.Value(0)).current;
-
     const titleOpacity = useRef(new Animated.Value(0)).current;
     const titleTranslateY = useRef(new Animated.Value(12)).current;
 
     useEffect(() => {
         Animated.sequence([
-            // 1. Logo pops in
             Animated.parallel([
                 Animated.timing(logoOpacity, {
                     toValue: 1,
@@ -28,7 +24,6 @@ export default function Splash() {
                     useNativeDriver: true,
                 }),
             ]),
-            // 2. Title fades + rises in right after
             Animated.parallel([
                 Animated.timing(titleOpacity, {
                     toValue: 1,
@@ -44,13 +39,10 @@ export default function Splash() {
                 }),
             ]),
         ]).start();
-    }, [logoOpacity, logoScale, titleOpacity, titleTranslateY]);
+    }, []);
 
-    useEffect(()=>{
-        setTimeout(() => {
-            router.replace('/onboarding');
-        }, 3000);
-    },[]);
+    // 👇 Koi router.replace() nahi yahan.
+    // Ye component sirf visual hai, navigation index.tsx control karega.
 
     return (
         <Animated.View style={styles.container}>
@@ -65,7 +57,6 @@ export default function Splash() {
                 ]}
                 resizeMode="contain"
             />
-
             <Animated.Text
                 style={[
                     styles.title,

@@ -3,11 +3,17 @@ import { Image, Text, TouchableOpacity, View } from "react-native";
 import { styles } from "./RecentUserCard.style";
 
 interface Props {
+
   name: string;
-  image: any;
+
+  image?: string;
+
   online?: boolean;
+
   isAdd?: boolean;
+
   onPress?: () => void;
+
 }
 
 export default function RecentUserCard({
@@ -34,7 +40,11 @@ export default function RecentUserCard({
       ) : (
         <View style={styles.avatarWrapper}>
           <Image
-            source={image}
+            source={
+              image
+                ? { uri: image }
+                : require("@/assets/images/man.png")
+            }
             style={styles.avatar}
           />
 

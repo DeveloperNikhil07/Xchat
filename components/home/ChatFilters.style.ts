@@ -2,10 +2,12 @@ import Colors from "@/constants/theme";
 import { StyleSheet } from "react-native";
 
 export const styles = StyleSheet.create({
+    container: {
+        flexGrow: 0,
+    },
     list: {
-        paddingVertical: 10,
-        marginTop: 10,
-        flex:1,
+        marginTop: 20,
+        gap: 10,
         justifyContent: "space-between",
     },
 
@@ -75,4 +77,33 @@ export const styles = StyleSheet.create({
         backgroundColor: "#FFFFFF",
         color: Colors.brandPrimary,
     },
+    badge: {
+
+        marginLeft: 8,
+
+        minWidth: 22,
+        height: 22,
+
+        paddingHorizontal: 6,
+
+        borderRadius: 11,
+
+        backgroundColor: "#FF3B30",
+
+        justifyContent: "center",
+        alignItems: "center",
+
+    },
+
+
+    badgeText: {
+
+        color: "#FFFFFF",
+
+        fontSize: 12,
+
+        fontWeight: "700",
+
+    },
 });
+

@@ -17,8 +17,8 @@ import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as ExpoLocation from "expo-location";
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Keyboard, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 const messages: Message[] = [
@@ -129,11 +129,16 @@ const messages: Message[] = [
 ];
 
 export default function ChatScreen() {
+    const router = useRouter();
     const listRef = useRef<FlatList>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [inputHeight, setInputHeight] = useState(0);
     const [chatMessages, setChatMessages] = useState<Message[]>(messages);
-    const { chatId, name } = useLocalSearchParams();
+    const { chatId, name, openSearch } = useLocalSearchParams<{
+        chatId: string;
+        name: string;
+        openSearch?: string;
+    }>();
     const [showActionSheet, setShowActionSheet] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [replyMessage, setReplyMessage] = useState<ReplyMessage | null>(null);
@@ -150,6 +155,8 @@ export default function ChatScreen() {
     const [showContactSheet, setShowContactSheet] = useState(false);
     const [selectedContactMessage, setSelectedContactMessage] = useState<Message | null>(null);
     const [showContactViewer, setShowContactViewer] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const [searchText, setSearchText] = useState("");
 
     const liveWatchRef = useRef<ExpoLocation.LocationSubscription | null>(null);
     const liveMessageIdRef = useRef<string | null>(null);
@@ -486,12 +493,31 @@ export default function ChatScreen() {
         setShowContactSheet(false);
     };
 
+    const filteredMessages = useMemo(() => {
+        if (!searchText.trim()) {
+            return chatMessages;
+        }
+
+        const query = searchText.toLowerCase();
+
+        return chatMessages.filter((item) =>
+            item.message?.toLowerCase().includes(query)
+        );
+
+    }, [chatMessages, searchText]);
+
     useEffect(() => {
         return () => {
             liveWatchRef.current?.remove();
             if (liveTimeoutRef.current) clearTimeout(liveTimeoutRef.current);
         };
     }, []);
+
+    useEffect(() => {
+        if (openSearch === "true") {
+            setIsSearching(true);
+        }
+    }, [openSearch]);
 
     console.log("Chat ID:", chatId);
     console.log("User Name:", name);
@@ -508,15 +534,44 @@ export default function ChatScreen() {
                         name={(name as string) || "User"}
                         image={require("@/assets/images/man.png")}
                         online
+
+                        isSearching={isSearching}
+                        searchText={searchText}
+                        allowSearch={false}
+                        onSearchChange={(text) => setSearchText(text)}
+
+                        onCloseSearch={() => {
+                            setIsSearching(false);
+                            setSearchText("");
+                            Keyboard.dismiss();
+                        }}
+
+                        onSearch={() => {
+                            setIsSearching(true);
+                        }}
+
                         onBack={() => router.back()}
                         onVoiceCall={() => { }}
                         onVideoCall={() => { }}
                         onMenu={() => { }}
+
+                        onProfilePress={() => {
+                            router.push({
+                                pathname: "/(profile)/[userId]",
+                                params: {
+                                    userId: chatId as string,
+                                    name: name as string,
+                                    avatar: "",
+                                    online: "true",
+                                    messages: JSON.stringify(chatMessages),
+                                },
+                            });
+                        }}
                     />
 
                     <MessageList
                         ref={listRef}
-                        messages={chatMessages}
+                        messages={filteredMessages}
                         bottomInset={inputHeight}
                         onScroll={handleScroll}
                         onLongPressMessage={(message) => {
