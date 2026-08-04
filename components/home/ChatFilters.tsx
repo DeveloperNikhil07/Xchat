@@ -1,4 +1,4 @@
-import { FlatList, Text, TouchableOpacity } from "react-native";
+import { FlatList, Text, TouchableOpacity, View } from "react-native";
 import { styles } from "./ChatFilters.style";
 
 export interface FilterItem {
@@ -25,6 +25,7 @@ export default function ChatFilters({
       keyExtractor={(item) => item.id}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.list}
+      style={styles.container}
       renderItem={({ item }) => {
         const active = selected === item.id;
 
@@ -45,18 +46,13 @@ export default function ChatFilters({
             >
               {item.label}
             </Text>
-
-            {item.count !== undefined &&
-              item.count > 0 && (
-                <Text
-                  style={[
-                    styles.count,
-                    active && styles.activeCount,
-                  ]}
-                >
+            {item.count !== undefined && item.count > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
                   {item.count}
                 </Text>
-              )}
+              </View>
+            )}
           </TouchableOpacity>
         );
       }}

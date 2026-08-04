@@ -77,10 +77,10 @@ export const AuthProvider = ({
     }, []);
 
     const refreshUser = async () => {
-        if (!firebaseUser) return;
+        if (!auth.currentUser) return;
 
         const user = await getUserDocument(
-            firebaseUser.uid
+            auth.currentUser.uid
         );
 
         setCurrentUser(user);
@@ -106,13 +106,18 @@ export const AuthProvider = ({
                     password,
                     phone
                 ) => {
-                      console.log("AuthContext signup");
+                    console.log("AuthContext signup");
+
                     await signup(
                         name,
                         email,
                         password,
                         phone
                     );
+
+                    // 🔑 Document Firestore me create hone ke baad
+                    // currentUser ko fresh data ke sath update karo
+                    await refreshUser();
                 },
 
                 logout: async () => {

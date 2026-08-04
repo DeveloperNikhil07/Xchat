@@ -9,19 +9,17 @@ SplashScreen.preventAutoHideAsync();
 
 export default function Index() {
   const router = useRouter();
-  const { loading, currentUser } = useAuth(); // loading = Firebase auth + user doc load ho raha hai
+  const { loading, currentUser } = useAuth();
 
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [onboardingShown, setOnboardingShown] = useState(false);
 
   const hasNavigated = useRef(false);
 
-  // Native splash hata do, custom animated Splash le lega
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);
 
-  // Onboarding flag check — ye Firebase se independent hai
   useEffect(() => {
     (async () => {
       try {
@@ -36,21 +34,22 @@ export default function Index() {
     })();
   }, []);
 
-  // Jab tak onboarding check + firebase auth dono ready na ho, kuch mat karo
   useEffect(() => {
     if (hasNavigated.current) return;
     if (checkingOnboarding) return;
-    if (loading) return; // Firebase abhi user resolve kar raha hai
+    if (loading) return; // Firebase persisted session abhi resolve ho raha hai
 
     hasNavigated.current = true;
 
-    if (!onboardingShown) {
-      router.replace("/onboarding");
+    // Agar user already logged in hai, onboarding dobara mat dikhao —
+    // login hone ka matlab hi hai ki wo onboarding pehle dekh chuka hai
+    if (currentUser) {
+      router.replace("/(tabs)/home");
       return;
     }
 
-    if (currentUser) {
-      router.replace("/(tabs)/home");
+    if (!onboardingShown) {
+      router.replace("/onboarding");
       return;
     }
 

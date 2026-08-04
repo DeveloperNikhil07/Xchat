@@ -13,9 +13,11 @@ import {
     View,
 } from "react-native";
 
+import { useState } from "react";
 import { styles } from "../../styles/MyProfile.style";
 
 export default function MyProfileScreen() {
+    const [logoutLoading, setLogoutLoading] = useState(false);
     const { currentUser, loading, logout } = useAuth();
     const { changeAvatar, uploadingAvatar } = useUserProfile();
 
@@ -28,10 +30,14 @@ export default function MyProfileScreen() {
 
     const handleLogout = async () => {
         try {
+            setLogoutLoading(true);
+
             await logout();
             router.replace("/(auth)/login");
         } catch (error) {
-            console.log(error);
+            console.log("Logout Error:", error);
+        } finally {
+            setLogoutLoading(false);
         }
     };
 
@@ -52,11 +58,27 @@ export default function MyProfileScreen() {
             </View>
         );
     }
-
+    if (loading || logoutLoading || !currentUser) {
+        return (
+            <View
+                style={{
+                    flex: 1,
+                    backgroundColor: Colors.background,
+                    justifyContent: "center",
+                    alignItems: "center",
+                }}
+            >
+                <ActivityIndicator
+                    size="large"
+                    color={Colors.brandPrimary}
+                />
+            </View>
+        );
+    }
     return (
         <View style={styles.container}>
             <Header
-                title={currentUser?.username||''}
+                title={currentUser?.username || ''}
                 onBack={() => router.back()}
                 iconColor="#FFF"
                 rightIcon="pencil"

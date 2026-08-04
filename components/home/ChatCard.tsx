@@ -4,7 +4,7 @@ import { Image, Text, TouchableOpacity, View } from "react-native";
 import { styles } from './ChatCard.style';
 
 interface Props {
-    image: any;
+    image: string;
     name: string;
     message: string;
     time: string;
@@ -36,7 +36,11 @@ export default function ChatCard({
 
             <View style={styles.avatarContainer}>
                 <Image
-                    source={image}
+                    source={
+                        image
+                            ? { uri: image }
+                            : require("@/assets/images/man.png")
+                    }
                     style={styles.avatar}
                 />
 

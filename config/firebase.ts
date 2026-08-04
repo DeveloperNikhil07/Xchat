@@ -1,6 +1,14 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getApp, getApps, initializeApp } from "firebase/app";
+import {
+  Auth,
+  getAuth,
+  initializeAuth,
+} from "firebase/auth";
+// @ts-ignore
+import { getReactNativePersistence } from "@firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getFirestore } from "firebase/firestore";
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyBA1Q45jJgJw2DyHr7n4Mek9u25WaGiXJY",
@@ -12,10 +20,22 @@ const firebaseConfig = {
   measurementId: "G-LNPS2P6HJW"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase (hot reload safe — duplicate app error nahi aayega)
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+// 🔑 Persistence ke sath auth — AsyncStorage me session save hoga
+let auth: Auth;
 
+try {
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(AsyncStorage),
+  });
+} catch (error) {
+  // Fast Refresh / hot reload me initializeAuth dubara call hone pe fallback
+  auth = getAuth(app);
+}
+
+const db = getFirestore(app);
+
+export { auth, db };
 export default app;

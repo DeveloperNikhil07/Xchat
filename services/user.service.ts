@@ -1,11 +1,31 @@
 import { db } from "@/config/firebase";
 import { AppUser } from "@/types/auth/auth.types";
 import {
-  doc,
-  getDoc,
-  serverTimestamp,
-  updateDoc,
+    doc,
+    getDoc,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
 } from "firebase/firestore";
+
+// ---------------- Create ----------------
+
+export const createUserDocument = async (
+    userData: AppUser
+): Promise<void> => {
+    try {
+        await setDoc(doc(db, "users", userData.uid), {
+            ...userData,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        });
+    } catch (error) {
+        console.log("createUserDocument Error:", error);
+        throw error;
+    }
+};
+
+// ---------------- Read ----------------
 
 export const getUserDocument = async (
     uid: string
@@ -22,6 +42,8 @@ export const getUserDocument = async (
     }
 };
 
+// ---------------- Update ----------------
+
 export interface UpdateUserPayload {
     displayName?: string;
     username?: string;
@@ -36,8 +58,15 @@ export const updateUserDocument = async (
     data: UpdateUserPayload
 ): Promise<void> => {
     try {
+        const payload = { ...data };
+
+        // Username hamesha lowercase save karo, taaki search consistent rahe
+        if (payload.username) {
+            payload.username = payload.username.trim().toLowerCase();
+        }
+
         await updateDoc(doc(db, "users", uid), {
-            ...data,
+            ...payload,
             updatedAt: serverTimestamp(),
         });
     } catch (error) {
