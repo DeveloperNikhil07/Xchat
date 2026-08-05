@@ -48,13 +48,36 @@ export default function ChatList({ chats, refreshing = false, onRefresh }: ChatL
                     <ChatCard
                         {...item}
                         onPress={() => {
-                            router.push({
-                                pathname: "/(chat)/[chatId]",
-                                params: {
-                                    chatId: item.id,
-                                    name: item.name,
-                                },
-                            });
+
+                            if (item.type === "request") {
+
+                                // Friend Request Open
+                                router.push({
+                                    pathname: "/(chat)/[chatId]",
+                                    params: {
+                                        chatId: item.id,
+                                        requestId: item.requestId || item.id,
+                                        name: item.name,
+                                        avatar: item.image || "",
+                                        type: "request",
+                                    },
+                                });
+
+                            } else {
+
+                                // Normal Chat Open
+                                router.push({
+                                    pathname: "/(chat)/[chatId]",
+                                    params: {
+                                        chatId: item.id,
+                                        name: item.name,
+                                        avatar: item.image || "",
+                                        type: "chat",
+                                    },
+                                });
+
+                            }
+
                         }}
                     />
                 )}

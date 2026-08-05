@@ -68,3 +68,66 @@ export interface ReplyPreviewProps {
     message: string;
     onClose: () => void;
 }
+
+export interface FirestoreMessage {
+
+    id: string;
+
+    senderId: string;
+
+    text?: string;
+
+    type: MessageType;
+
+    createdAt: any;
+
+    status?:
+    | "sending"
+    | "sent"
+    | "delivered"
+    | "seen";
+
+
+    reply?: ReplyMessage;
+
+    image?: string | null;
+
+
+    document?: {
+        name: string;
+        uri: string;
+        size?: number;
+        mimeType?: string;
+    };
+
+
+    audio?: {
+        uri: string;
+        name: string;
+        size?: number;
+        duration?: number;
+    };
+
+
+    video?: {
+        uri: string;
+        size?: number;
+        duration?: number;
+    };
+
+
+    location?: {
+        latitude: number;
+        longitude: number;
+        address?: string;
+    };
+
+
+    contact?: {
+        name: string;
+        phoneNumbers: string[];
+        emails?: string[];
+        imageUri?: string | null;
+    };
+
+}

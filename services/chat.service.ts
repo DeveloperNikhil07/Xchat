@@ -1,12 +1,13 @@
 import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  query,
-  serverTimestamp,
-  setDoc,
-  where,
+    collection,
+    doc,
+    getDoc,
+    getDocs,
+    onSnapshot,
+    query,
+    serverTimestamp,
+    setDoc,
+    where,
 } from "firebase/firestore";
 
 import { auth, db } from "@/config/firebase";
@@ -26,38 +27,56 @@ export const createChat = async (
     currentUid: string,
     otherUid: string
 ) => {
+    try {
+        console.log("CREATE CHAT START");
 
-    const exist = await getChatByParticipants(
-        currentUid,
-        otherUid
-    );
-
-    if (exist) {
-        return exist.id;
-    }
-
-    const ref = doc(collection(db, CHATS));
-
-    await setDoc(ref, {
-
-        participants: [
+        // Duplicate check
+        const exist = await getChatByParticipants(
             currentUid,
-            otherUid,
-        ],
+            otherUid
+        );
 
-        isGroup: false,
+        if (exist) {
+            console.log("Chat already exists");
+            return exist.id;
+        }
 
-        lastMessage: "",
+        const ref = doc(collection(db, CHATS));
 
-        lastMessageSender: "",
+        await setDoc(ref, {
+            participants: [
+                currentUid,
+                otherUid
+            ],
 
-        lastMessageTime: serverTimestamp(),
+            isGroup: false,
 
-        createdAt: serverTimestamp(),
+            lastMessage: {
+                text: "",
+                senderId: "",
+                createdAt: null,
+            },
 
-    });
+            unreadCount: {
+                [currentUid]: 0,
+                [otherUid]: 0,
+            },
 
-    return ref.id;
+            lastMessageTime: serverTimestamp(),
+
+            createdAt: serverTimestamp(),
+        });
+
+        console.log("Chat Created :", ref.id);
+
+        return ref.id;
+    } catch (error) {
+        console.log(
+            "createChat Error =>",
+            error
+        );
+        throw error;
+    }
 };
 
 
@@ -70,36 +89,40 @@ export const getChatByParticipants = async (
     uid1: string,
     uid2: string
 ) => {
+    try {
+        console.log("Checking existing chat...");
 
-    const q = query(
-        collection(db, CHATS),
-        where("participants", "array-contains", uid1)
-    );
+        const q = query(
+            collection(db, CHATS),
+            where("participants", "array-contains", uid1)
+        );
 
-    const snapshot = await getDocs(q);
+        const snapshot = await getDocs(q);
 
-    for (const item of snapshot.docs) {
+        for (const item of snapshot.docs) {
+            const data = item.data();
 
-        const data = item.data();
+            const participants: string[] =
+                data.participants || [];
 
-        const participants =
-            data.participants || [];
-
-        if (
-            participants.includes(uid2)
-        ) {
-
-            return {
-                id: item.id,
-                ...data,
-            };
-
+            if (participants.includes(uid2)) {
+                return {
+                    id: item.id,
+                    ...data,
+                };
+            }
         }
 
+        return null;
+    } catch (error) {
+        console.log(
+            "getChatByParticipants Error =>",
+            error
+        );
+
+        // Agar permission issue hai to naya chat create hone do
+        return null;
     }
-
-    return null;
-
 };
 
 
@@ -288,3 +311,115 @@ export const fetchChats =
         return chats;
 
     };
+
+// ------------------------------------------------------
+// Listen Chats (Realtime)
+// ------------------------------------------------------
+
+export const listenChats = (
+    callback: (chats: ChatListItem[]) => void
+) => {
+    const uid = auth.currentUser?.uid;
+
+    if (!uid) {
+        callback([]);
+        return () => { };
+    }
+
+    const q = query(
+        collection(db, CHATS),
+        where("participants", "array-contains", uid)
+    );
+
+    return onSnapshot(q, async (snapshot) => {
+        const chats: ChatListItem[] = [];
+
+        for (const item of snapshot.docs) {
+            const data = item.data();
+
+            const otherUid = data.participants.find(
+                (id: string) => id !== uid
+            );
+
+            if (!otherUid) continue;
+
+            const userSnap = await getDoc(
+                doc(db, USERS, otherUid)
+            );
+
+            if (!userSnap.exists()) continue;
+
+            const user = userSnap.data();
+
+            chats.push({
+                id: item.id,
+                name: user.displayName,
+                image: user.photoURL,
+                online: user.isOnline,
+                message: data.unreadCount > 0 ? `${data.unreadCount} new messages` : data.lastMessage || "Start chatting",
+                unread: data.unreadCount || 0,
+                typing: false,
+                voice: false,
+                archived: false,
+                type: "private",
+                time: "",
+            });
+        }
+
+        callback(chats);
+    });
+};
+
+// ------------------------------------------------------
+// Listen Recent Users (Realtime)
+// ------------------------------------------------------
+
+export const listenRecentUsers = (
+    callback: (users: RecentUser[]) => void
+) => {
+    const uid = auth.currentUser?.uid;
+
+    if (!uid) {
+        callback([]);
+        return () => { };
+    }
+
+    const q = query(
+        collection(db, CHATS),
+        where("participants", "array-contains", uid)
+    );
+
+    return onSnapshot(q, async (snapshot) => {
+        const users: RecentUser[] = [];
+
+        for (const item of snapshot.docs) {
+            const chat = item.data();
+
+            const otherUserId = chat.participants.find(
+                (id: string) => id !== uid
+            );
+
+            if (!otherUserId) continue;
+
+            const userSnap = await getDoc(
+                doc(db, USERS, otherUserId)
+            );
+
+            if (!userSnap.exists()) continue;
+
+            const user = userSnap.data();
+
+            users.push({
+                uid: user.uid,
+                displayName: user.displayName,
+                username: user.username,
+                photoURL: user.photoURL,
+                isOnline: user.isOnline,
+                lastSeen: user.lastSeen,
+            });
+        }
+
+        callback(users);
+    });
+};
+

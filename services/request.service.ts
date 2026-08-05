@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   query,
@@ -13,9 +14,11 @@ import {
 
 import { db } from "@/config/firebase";
 import { ChatRequest } from "@/types/request/request.types";
+import { createChat } from "./chat.service";
 
 const REQUESTS_COLLECTION = "chat_requests";
-
+const USERS_COLLECTION = "users";
+const CHATS_COLLECTION = "chats";
 /**
  * -----------------------------
  * Send Chat Request
@@ -73,12 +76,40 @@ export const sendChatRequest = async (
 export const acceptChatRequest = async (
   requestId: string
 ) => {
-  await updateDoc(
-    doc(db, REQUESTS_COLLECTION, requestId),
-    {
-      status: "accepted",
-    }
+
+  const requestRef = doc(db, REQUESTS_COLLECTION, requestId);
+
+  const requestSnap = await getDoc(requestRef);
+
+  if (!requestSnap.exists()) {
+    throw new Error("Request not found.");
+  }
+
+  const request = requestSnap.data();
+
+  // Chat Create
+  const chatId = await createChat(
+    request.senderId,
+    request.receiverId
   );
+
+  await updateDoc(requestRef, {
+    status: "accepted",
+    acceptedAt: serverTimestamp()
+  });
+
+
+  const check = await getDoc(requestRef);
+
+  console.log(
+    "AFTER UPDATE REQUEST:",
+    check.data()
+  );
+
+  return {
+    chatId,
+    otherUserId: request.senderId,
+  };
 };
 
 /**
@@ -89,12 +120,15 @@ export const acceptChatRequest = async (
 export const rejectChatRequest = async (
   requestId: string
 ) => {
-  await updateDoc(
-    doc(db, REQUESTS_COLLECTION, requestId),
-    {
-      status: "rejected",
-    }
+
+  await deleteDoc(
+    doc(
+      db,
+      REQUESTS_COLLECTION,
+      requestId
+    )
   );
+
 };
 
 /**
@@ -134,28 +168,121 @@ export const getPendingRequests = async (
 
 /**
  * -----------------------------
- * Listen Pending Requests
+ * Listen Pending Requests (sender ka naam/photo enriched)
  * -----------------------------
  */
-export const listenPendingRequests = (
-  receiverId: string,
-  callback: (requests: ChatRequest[]) => void
-) => {
+export interface EnrichedChatRequest extends ChatRequest {
+  senderName?: string;
+  senderUsername?: string;
+  senderPhoto?: string;
+}
+
+export function listenPendingRequests(
+  uid: string,
+  callback: (data: EnrichedChatRequest[]) => void
+) {
   const q = query(
     collection(db, REQUESTS_COLLECTION),
-    where("receiverId", "==", receiverId),
+    where("receiverId", "==", uid),
     where("status", "==", "pending")
   );
 
-  return onSnapshot(q, (snapshot) => {
-    const requests = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...(doc.data() as Omit<ChatRequest, "id">),
-    }));
+  const unsubscribe = onSnapshot(
+    q,
+    async (snapshot) => {
 
-    callback(requests);
-  });
-};
+      const requests = await Promise.all(
+        snapshot.docs.map(async (docSnap) => {
+
+          const data = docSnap.data() as ChatRequest;
+
+
+          let senderName = "";
+          let senderUsername = "";
+          let senderPhoto = "";
+
+
+          try {
+            const userSnap = await getDoc(
+              doc(
+                db,
+                USERS_COLLECTION,
+                data.senderId
+              )
+            );
+
+
+            if (userSnap.exists()) {
+
+              const user = userSnap.data();
+
+              senderName =
+                user.displayName || "";
+
+              senderUsername =
+                user.username || "";
+
+              senderPhoto =
+                user.photoURL || "";
+            }
+
+
+          } catch (error) {
+
+            console.log(
+              "User fetch error",
+              error
+            );
+
+          }
+
+
+          const request: EnrichedChatRequest = {
+
+            id: docSnap.id,
+
+            senderId: data.senderId,
+
+            receiverId: data.receiverId,
+
+            status: data.status,
+
+            createdAt: data.createdAt,
+
+
+            senderName,
+
+            senderUsername,
+
+            senderPhoto,
+
+          };
+
+
+          return request;
+
+        })
+      );
+
+
+      callback(requests);
+
+    },
+
+
+    (error) => {
+
+      console.log(
+        "Pending request listener error:",
+        error.message
+      );
+
+    }
+  );
+
+
+  return unsubscribe;
+}
 
 /**
  * -----------------------------

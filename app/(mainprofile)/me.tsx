@@ -33,14 +33,16 @@ export default function MyProfileScreen() {
             setLogoutLoading(true);
 
             await logout();
+
             router.replace("/(auth)/login");
+
         } catch (error) {
             console.log("Logout Error:", error);
+
         } finally {
             setLogoutLoading(false);
         }
     };
-
     if (loading || !currentUser) {
         return (
             <View

@@ -9,136 +9,46 @@ import LocationShareSheet from "@/components/chat/locations/LocationShareSheet";
 import LocationViewer from "@/components/chat/locations/LocationViewer";
 import MessageInput from "@/components/chat/MessageInput";
 import MessageList from "@/components/chat/MessageList";
+import RequestActions from "@/components/chat/request/RequestActions";
 import ScrollToBottomButton from "@/components/chat/ScrollToBottomButton";
 import VideoViewer from "@/components/chat/VideoViewer";
 import ScreenContainer from "@/components/layout/ScreenContainer";
+import { db } from "@/config/firebase";
+import { useAuth } from "@/hooks/useAuth";
+import {
+    listenMessages,
+    sendMessage
+} from "@/services/message.service";
+import {
+    acceptChatRequest,
+    rejectChatRequest,
+} from "@/services/request.service";
 import { Message, ReplyMessage } from "@/types/chat/message/message";
 import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as ExpoLocation from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { doc, updateDoc } from "firebase/firestore";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Keyboard, TouchableWithoutFeedback, View } from "react-native";
+import { Alert, FlatList, Keyboard, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
-const messages: Message[] = [
-    {
-        id: "1",
-        message: "Hey 👋",
-        time: "10:01",
-        isSender: false,
-        date: "Today",
-        isStarred: false,
-        image: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800 ',
-        type: 'image',
-    },
-    {
-        id: "2",
-        message: "Hi! How are you?",
-        time: "10:02",
-        isSender: true,
-        status: "seen",
-        date: "Today",
-        isStarred: false,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "3",
-        message: "I'm doing great 😊",
-        time: "10:03",
-        isSender: false,
-        date: "Today",
-        isStarred: true,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "4",
-        message: "Are we meeting this evening?",
-        time: "10:05",
-        isSender: false,
-        date: "Today",
-        isStarred: false,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "5",
-        message: "Yes, let's meet at 6 PM.",
-        time: "10:06",
-        isSender: true,
-        status: "delivered",
-        date: "Today",
-        isStarred: false,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "6",
-        message: "Perfect! See you then.",
-        time: "10:07",
-        isSender: false,
-        date: "Today",
-        isStarred: false,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "7",
-        message: "Don't forget to bring the documents.",
-        time: "10:08",
-        isSender: true,
-        status: "seen",
-        date: "Today",
-        isStarred: true,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "8",
-        message: "Sure, I'll bring everything.",
-        time: "10:09",
-        isSender: false,
-        date: "Today",
-        isStarred: false,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "9",
-        message: "Thanks! 👍",
-        time: "10:10",
-        isSender: true,
-        status: "seen",
-        date: "Today",
-        isStarred: false,
-        image: '',
-        type: 'text',
-    },
-    {
-        id: "10",
-        message: "See you soon 👋",
-        time: "10:11",
-        isSender: false,
-        date: "Today",
-        isStarred: false,
-        image: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=800',
-        type: 'image',
-    },
-];
-
 export default function ChatScreen() {
+    const { currentUser } = useAuth();
     const router = useRouter();
     const listRef = useRef<FlatList>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [inputHeight, setInputHeight] = useState(0);
-    const [chatMessages, setChatMessages] = useState<Message[]>(messages);
-    const { chatId, name, openSearch } = useLocalSearchParams<{
+    const [chatMessages, setChatMessages] = useState<Message[]>([]);
+    const { chatId, name, avatar, openSearch, requestId, type } = useLocalSearchParams<{
         chatId: string;
         name: string;
+        avatar?: string;
         openSearch?: string;
+        requestId?: string;
+        type?: string;
     }>();
+    const isRequest = type === "request";
     const [showActionSheet, setShowActionSheet] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
     const [replyMessage, setReplyMessage] = useState<ReplyMessage | null>(null);
@@ -157,33 +67,51 @@ export default function ChatScreen() {
     const [showContactViewer, setShowContactViewer] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [searchText, setSearchText] = useState("");
+    const [actionLoading, setActionLoading] = useState(false);
 
     const liveWatchRef = useRef<ExpoLocation.LocationSubscription | null>(null);
     const liveMessageIdRef = useRef<string | null>(null);
     const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const handleSend = (text: string) => {
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            type: "text",
-            message: text,
-            image: null,
-            time: "Now",
-            isSender: true,
-            status: "sent",
-            date: "Today",
-            isStarred: false,
-            reply: replyMessage
-                ? {
-                    sender: replyMessage.sender,
-                    message: replyMessage.message,
-                }
-                : undefined,
-        };
+    const handleSend = async (text: string) => {
+        const message = text.trim();
 
-        setChatMessages((prev) => [...prev, newMessage]);
+        if (!chatId || !currentUser || !message) {
+            return;
+        }
 
-        setReplyMessage(null);
+        try {
+            await sendMessage(chatId, {
+                senderId: currentUser.uid,
+                text: message,
+                type: "text",
+                reply: replyMessage
+                    ? {
+                        sender: replyMessage.sender,
+                        message: replyMessage.message,
+                    }
+                    : null,
+            });
+
+            setReplyMessage(null);
+
+        } catch (error) {
+            console.log(
+                "Send message error:",
+                error
+            );
+        }
+    };
+
+    const markChatRead = async () => {
+
+        await updateDoc(
+            doc(db, "chats", chatId),
+            {
+                unreadCount: 0
+            }
+        );
+
     };
 
     const handleDeleteMessage = (id: string) => {
@@ -493,6 +421,87 @@ export default function ChatScreen() {
         setShowContactSheet(false);
     };
 
+    const handleAccept = async () => {
+        try {
+            console.log("Accept clicked", requestId);
+
+            if (!requestId) return;
+
+            setActionLoading(true);
+
+            const result = await acceptChatRequest(requestId);
+
+            console.log("Accepted result:", result);
+            router.replace({
+                pathname: "/(chat)/[chatId]",
+                params: {
+                    ...result,
+                    chatId: result.chatId,
+                    type: "chat",
+                    name: name as string,
+                    avatar: avatar as string,
+                },
+            });
+            Alert.alert(
+                "Success",
+                "Request accepted successfully."
+            );
+        } catch (error) {
+            console.log(error);
+
+            Alert.alert(
+                "Error",
+                "Unable to accept request."
+            );
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleBlock = async () => {
+        try {
+            if (!requestId) return;
+
+            Alert.alert(
+                "Decline Request",
+                "Are you sure?",
+                [
+                    {
+                        text: "Cancel",
+                        style: "cancel",
+                    },
+                    {
+                        text: "Decline",
+                        style: "destructive",
+                        onPress: async () => {
+                            try {
+                                setActionLoading(true);
+
+                                await rejectChatRequest(
+                                    requestId
+                                );
+
+                                Alert.alert(
+                                    "Declined",
+                                    "Request declined."
+                                );
+                            } catch {
+                                Alert.alert(
+                                    "Error",
+                                    "Unable to decline request."
+                                );
+                            } finally {
+                                setActionLoading(false);
+                            }
+                        },
+                    },
+                ]
+            );
+        } catch (error) {
+            console.log(error);
+        }
+    };
+
     const filteredMessages = useMemo(() => {
         if (!searchText.trim()) {
             return chatMessages;
@@ -518,6 +527,50 @@ export default function ChatScreen() {
             setIsSearching(true);
         }
     }, [openSearch]);
+
+    useEffect(() => {
+        if (!chatId || !currentUser || type === "request") {
+            return;
+        }
+
+        const unsubscribe = listenMessages(
+            chatId,
+            (data) => {
+                const formatted: Message[] = data.map((msg) => ({
+                    id: msg.id,
+                    message: msg.text || "",
+                    type: msg.type || "text",
+                    image: msg.image || null,
+                    time: msg.createdAt?.toDate()?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", }) || "",
+                    date: "Today",
+                    isSender: msg.senderId === currentUser.uid,
+                    status: msg.status,
+                    isStarred: false,
+                    reply: msg.reply || undefined,
+                }));
+                setChatMessages(formatted);
+            }
+        );
+
+        return unsubscribe;
+
+    }, [
+        chatId,
+        type,
+        currentUser,
+    ]);
+
+    useEffect(() => {
+
+        if (!chatId || !currentUser)
+            return;
+
+        markChatRead();
+
+    }, [
+        chatId,
+        currentUser
+    ]);
 
     console.log("Chat ID:", chatId);
     console.log("User Name:", name);
@@ -569,7 +622,7 @@ export default function ChatScreen() {
                         }}
                     />
 
-                    <MessageList
+                    {!isRequest && (<MessageList
                         ref={listRef}
                         messages={filteredMessages}
                         bottomInset={inputHeight}
@@ -599,25 +652,25 @@ export default function ChatScreen() {
                             setShowContactViewer(true);
                         }}
 
-                    />
+                    />)}
 
-                    <KeyboardStickyView onLayout={(event) => {
-                        setInputHeight(event.nativeEvent.layout.height);
-                    }}>
-                        <ScrollToBottomButton
-                            visible={showScrollButton}
-                            onPress={scrollToBottom}
-                        />
-                        <MessageInput
-                            replyMessage={replyMessage}
-                            setReplyMessage={setReplyMessage}
-                            onSend={handleSend}
-                            onEmojiPress={() => { }}
-                            onAttachmentPress={() => setShowAttachment(true)}
-                            onCameraPress={openCamera}
-                            onVoicePress={() => { }}
-                        />
-                    </KeyboardStickyView>
+                    {!isRequest && (
+                        <KeyboardStickyView onLayout={(event) => { setInputHeight(event.nativeEvent.layout.height); }}>
+                            <ScrollToBottomButton
+                                visible={showScrollButton}
+                                onPress={scrollToBottom}
+                            />
+                            <MessageInput
+                                replyMessage={replyMessage}
+                                setReplyMessage={setReplyMessage}
+                                onSend={handleSend}
+                                onEmojiPress={() => { }}
+                                onAttachmentPress={() => setShowAttachment(true)}
+                                onCameraPress={openCamera}
+                                onVoicePress={() => { }}
+                            />
+                        </KeyboardStickyView>
+                    )}
 
                     <AttachmentSheet
                         visible={showAttachment}
@@ -727,6 +780,16 @@ export default function ChatScreen() {
                         document={selectedDocument ?? null}
                         onClose={() => setShowDocumentViewer(false)}
                     />
+
+                    {isRequest && (
+                        <RequestActions
+                            userName={(name as string) || "Unknown User"}
+                            userImage={(avatar as string) || ""}
+                            loading={actionLoading}
+                            onAccept={handleAccept}
+                            onBlock={handleBlock}
+                        />
+                    )}
                 </View>
             </TouchableWithoutFeedback>
 

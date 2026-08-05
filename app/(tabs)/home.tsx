@@ -121,11 +121,12 @@ export default function Home() {
     const requestChats: ChatListItem[] = useMemo(() => {
         return requests.map((item) => ({
             id: item.id,
+            requestId: item.id,
+            senderId: item.senderId,
+            receiverId: item.receiverId,
             image: item.senderPhoto || "",
-            name:
-                item.senderName ||
-                item.senderUsername ||
-                "New Request",
+            name:item.senderName ||item.senderUsername ||"New Request",
+            username: item.senderUsername || "",
             message: "New friend request",
             time: "",
             unread: 1,
@@ -133,9 +134,10 @@ export default function Home() {
             typing: false,
             voice: false,
             archived: false,
-            type: "request",
+            type: "request" as const,
             photoURL: item.senderPhoto || "",
         }));
+
     }, [requests]);
 
     const filteredChats = useMemo(() => {
