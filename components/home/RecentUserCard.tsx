@@ -1,26 +1,17 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Image, Text, TouchableOpacity, View } from "react-native";
 import { styles } from "./RecentUserCard.style";
 
 interface Props {
-
   name: string;
-
   image?: string;
-
   online?: boolean;
-
-  isAdd?: boolean;
-
   onPress?: () => void;
-
 }
 
 export default function RecentUserCard({
   name,
   image,
   online = false,
-  isAdd = false,
   onPress,
 }: Props) {
   return (
@@ -29,28 +20,18 @@ export default function RecentUserCard({
       style={styles.container}
       onPress={onPress}
     >
-      {isAdd ? (
-        <View style={styles.addAvatar}>
-          <Ionicons
-            name="add"
-            size={32}
-            color="#fff"
-          />
-        </View>
-      ) : (
-        <View style={styles.avatarWrapper}>
-          <Image
-            source={
-              image
-                ? { uri: image }
-                : require("@/assets/images/man.png")
-            }
-            style={styles.avatar}
-          />
+      <View style={styles.avatarWrapper}>
+        <Image
+          source={
+            image
+              ? { uri: image }
+              : require("@/assets/images/man.png")
+          }
+          style={styles.avatar}
+        />
 
-          {online && <View style={styles.onlineDot} />}
-        </View>
-      )}
+        {online && <View style={styles.onlineDot} />}
+      </View>
 
       <Text
         numberOfLines={1}

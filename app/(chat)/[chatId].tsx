@@ -17,6 +17,9 @@ import { db } from "@/config/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import {
     listenMessages,
+    markMessagesAsSeen,
+    markMessagesDelivered,
+    markMessagesSeen,
     sendMessage
 } from "@/services/message.service";
 import {
@@ -68,6 +71,8 @@ export default function ChatScreen() {
     const [isSearching, setIsSearching] = useState(false);
     const [searchText, setSearchText] = useState("");
     const [actionLoading, setActionLoading] = useState(false);
+    const [showEmoji, setShowEmoji] = useState(false);
+
 
     const liveWatchRef = useRef<ExpoLocation.LocationSubscription | null>(null);
     const liveMessageIdRef = useRef<string | null>(null);
@@ -79,7 +84,7 @@ export default function ChatScreen() {
         if (!chatId || !currentUser || !message) {
             return;
         }
-
+        console.log("SEND CHAT ID:", chatId);
         try {
             await sendMessage(chatId, {
                 senderId: currentUser.uid,
@@ -104,14 +109,21 @@ export default function ChatScreen() {
     };
 
     const markChatRead = async () => {
+        if (type === "request") return;
+        if (!chatId || !currentUser) return;
 
-        await updateDoc(
-            doc(db, "chats", chatId),
-            {
-                unreadCount: 0
-            }
-        );
+        console.log("MARK READ CHAT:", chatId);
 
+        try {
+            await updateDoc(
+                doc(db, "chats", chatId),
+                {
+                    [`unreadCount.${currentUser.uid}`]: 0,
+                }
+            );
+        } catch (e) {
+            console.log("MARK READ ERROR", e);
+        }
     };
 
     const handleDeleteMessage = (id: string) => {
@@ -561,15 +573,33 @@ export default function ChatScreen() {
     ]);
 
     useEffect(() => {
+        if (!chatId || !currentUser?.uid) return;
 
+        markMessagesAsSeen(chatId, currentUser.uid);
+
+    }, [chatId, currentUser?.uid]);
+
+    useEffect(() => {
         if (!chatId || !currentUser)
+            return;
+
+        if (type === "request")
             return;
 
         markChatRead();
 
+    }, [chatId, currentUser, type]);
+
+    useEffect(() => {
+        if (!chatId || !currentUser?.uid) return;
+
+        markMessagesDelivered(chatId, currentUser.uid);
+        markMessagesSeen(chatId, currentUser.uid);
     }, [
         chatId,
-        currentUser
+        currentUser,
+        markMessagesDelivered,
+        markMessagesSeen,
     ]);
 
     console.log("Chat ID:", chatId);
@@ -622,37 +652,38 @@ export default function ChatScreen() {
                         }}
                     />
 
-                    {!isRequest && (<MessageList
-                        ref={listRef}
-                        messages={filteredMessages}
-                        bottomInset={inputHeight}
-                        onScroll={handleScroll}
-                        onLongPressMessage={(message) => {
-                            setSelectedMessage(message);
-                            setShowActionSheet(true);
-                        }}
-                        onImagePress={(image) => {
-                            setSelectedImage(image);
-                            setShowImageViewer(true);
-                        }}
-                        onVideoPress={(uri) => {
-                            setSelectedVideo(uri);
-                            setShowVideoViewer(true);
-                        }}
-                        onDocumentPress={(document) => {
-                            setSelectedDocument(document)
-                            setShowDocumentViewer(true)
-                        }}
-                        onLocationPress={(message) => {
-                            setSelectedLocationMessage(message);
-                            setShowLocationViewer(true);
-                        }}
-                        onContactPress={(message) => {
-                            setSelectedContactMessage(message);
-                            setShowContactViewer(true);
-                        }}
+                    {!isRequest && (
+                        <MessageList
+                            ref={listRef}
+                            messages={filteredMessages}
+                            bottomInset={inputHeight}
+                            onScroll={handleScroll}
+                            onLongPressMessage={(message) => {
+                                setSelectedMessage(message);
+                                setShowActionSheet(true);
+                            }}
+                            onImagePress={(image) => {
+                                setSelectedImage(image);
+                                setShowImageViewer(true);
+                            }}
+                            onVideoPress={(uri) => {
+                                setSelectedVideo(uri);
+                                setShowVideoViewer(true);
+                            }}
+                            onDocumentPress={(document) => {
+                                setSelectedDocument(document)
+                                setShowDocumentViewer(true)
+                            }}
+                            onLocationPress={(message) => {
+                                setSelectedLocationMessage(message);
+                                setShowLocationViewer(true);
+                            }}
+                            onContactPress={(message) => {
+                                setSelectedContactMessage(message);
+                                setShowContactViewer(true);
+                            }}
 
-                    />)}
+                        />)}
 
                     {!isRequest && (
                         <KeyboardStickyView onLayout={(event) => { setInputHeight(event.nativeEvent.layout.height); }}>
@@ -668,6 +699,8 @@ export default function ChatScreen() {
                                 onAttachmentPress={() => setShowAttachment(true)}
                                 onCameraPress={openCamera}
                                 onVoicePress={() => { }}
+                                showEmoji={showEmoji}
+                                setShowEmoji={setShowEmoji}
                             />
                         </KeyboardStickyView>
                     )}

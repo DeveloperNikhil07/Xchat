@@ -16,7 +16,11 @@ interface MessageBubbleProps {
     message: string;
     time: string;
     isSender: boolean;
+
     status?: "sending" | "sent" | "delivered" | "seen";
+    deliveredTo?: string[];
+
+    seenBy?: string[];
 
     image?: string | null;
 
@@ -71,7 +75,8 @@ export default function MessageBubble({
     time,
     isSender,
     status = "sent",
-
+    deliveredTo = [],
+    seenBy = [],
     image,
     document,
 
@@ -93,6 +98,12 @@ export default function MessageBubble({
     onContactPress
 
 }: MessageBubbleProps) {
+    const messageStatus =
+        seenBy.length > 0
+            ? "seen"
+            : deliveredTo.length > 0
+                ? "delivered"
+                : status;
     return (
         <View
             style={[
@@ -209,6 +220,8 @@ export default function MessageBubble({
                         {isSender && (
                             <MessageStatus
                                 status={status}
+                                deliveredTo={deliveredTo}
+                                seenBy={seenBy}
                                 color="rgba(255,255,255,.8)"
                                 size={15}
                             />

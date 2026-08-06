@@ -21,6 +21,8 @@ export interface Message {
     isSender: boolean;
 
     status?: "sending" | "sent" | "delivered" | "seen";
+    deliveredTo?: string[];
+    seenBy?: string[];
     date?: string;
 
     reply?: ReplyMessage;
@@ -87,7 +89,9 @@ export interface FirestoreMessage {
     | "delivered"
     | "seen";
 
-
+    deliveredTo?: string[];
+    seenBy?: string[];
+    
     reply?: ReplyMessage;
 
     image?: string | null;

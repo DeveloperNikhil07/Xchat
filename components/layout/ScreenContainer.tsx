@@ -11,13 +11,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 interface Props {
     children: ReactNode;
     paddingHorizontal?: number;
+    paddingBottom?: number;
     background?: boolean;
+    paddingTop?: number;
 }
 
 export default function ScreenContainer({
     children,
     paddingHorizontal = 20,
     background = true,
+    paddingBottom = 0,
+    paddingTop = 0,
 }: Props) {
 
     const Content = (
@@ -30,6 +34,8 @@ export default function ScreenContainer({
                     styles.content,
                     {
                         paddingHorizontal,
+                        paddingBottom,
+                        paddingTop,
                     },
                 ]}
             >

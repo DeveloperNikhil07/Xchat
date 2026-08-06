@@ -156,14 +156,16 @@ export const fetchRecentUsers =
 
         for (const item of snapshot.docs) {
 
-            const chat =
-                item.data();
+            const chat = item.data();
 
-            const otherUserId =
-                chat.participants.find(
-                    (id: string) =>
-                        id !== uid
-                );
+            // ❌ Message nahi hua to Recent me mat dikhao
+            if (!chat.lastMessage?.createdAt) {
+                continue;
+            }
+
+            const otherUserId = chat.participants.find(
+                (id: string) => id !== uid
+            );
 
             if (!otherUserId)
                 continue;
@@ -184,28 +186,24 @@ export const fetchRecentUsers =
                 userSnap.data();
 
             users.push({
-
                 uid: user.uid,
+                chatId: item.id,
+                displayName: user.displayName,
+                username: user.username,
+                photoURL: user.photoURL,
+                isOnline: user.isOnline,
+                lastSeen: user.lastSeen,
 
-                displayName:
-                    user.displayName,
-
-                username:
-                    user.username,
-
-                photoURL:
-                    user.photoURL,
-
-                isOnline:
-                    user.isOnline,
-
-                lastSeen:
-                    user.lastSeen,
-
+                lastMessageTime:
+                    chat.lastMessage.createdAt.toMillis(),
             });
 
         }
-
+        users.sort(
+            (a, b) =>
+                (b.lastMessageTime ?? 0) -
+                (a.lastMessageTime ?? 0)
+        );
         return users;
 
     };
@@ -286,9 +284,7 @@ export const fetchChats =
                 online:
                     user.isOnline,
 
-                message:
-                    data.lastMessage ||
-                    "Start chatting",
+                message: data.lastMessage?.text || "Start chatting",
 
                 unread: 0,
 
@@ -332,41 +328,57 @@ export const listenChats = (
     );
 
     return onSnapshot(q, async (snapshot) => {
-        const chats: ChatListItem[] = [];
+        const chats = await Promise.all(
+            snapshot.docs.map(async (item) => {
+                const data = item.data();
 
-        for (const item of snapshot.docs) {
-            const data = item.data();
+                const otherUid = data.participants.find(
+                    (id: string) => id !== uid
+                );
 
-            const otherUid = data.participants.find(
-                (id: string) => id !== uid
-            );
+                if (!otherUid) return null;
 
-            if (!otherUid) continue;
+                const userSnap = await getDoc(
+                    doc(db, USERS, otherUid)
+                );
 
-            const userSnap = await getDoc(
-                doc(db, USERS, otherUid)
-            );
+                if (!userSnap.exists()) return null;
 
-            if (!userSnap.exists()) continue;
+                const user = userSnap.data();
 
-            const user = userSnap.data();
+                return {
+                    id: item.id,
+                    name: user.displayName,
+                    image: user.photoURL,
+                    online: user.isOnline,
+                    message:
+                        data.unreadCount?.[uid] > 0
+                            ? `${data.unreadCount[uid]} new messages`
+                            : data.lastMessage?.text || "Start chatting",
+                    unread: data.unreadCount?.[uid] || 0,
+                    typing: false,
+                    voice: false,
+                    archived: false,
+                    type: "private",
+                    time: "",
+                    lastMessageTime:
+                        data.lastMessage?.createdAt?.toMillis?.() ??
+                        data.createdAt?.toMillis?.() ??
+                        0,
+                } as ChatListItem & {
+                    lastMessageTime: number;
+                };
+            })
+        );
 
-            chats.push({
-                id: item.id,
-                name: user.displayName,
-                image: user.photoURL,
-                online: user.isOnline,
-                message: data.unreadCount > 0 ? `${data.unreadCount} new messages` : data.lastMessage || "Start chatting",
-                unread: data.unreadCount || 0,
-                typing: false,
-                voice: false,
-                archived: false,
-                type: "private",
-                time: "",
-            });
-        }
-
-        callback(chats);
+        callback(
+            chats
+                .filter(Boolean)
+                .sort(
+                    (a: any, b: any) =>
+                        b.lastMessageTime - a.lastMessageTime
+                ) as ChatListItem[]
+        );
     });
 };
 
@@ -390,36 +402,50 @@ export const listenRecentUsers = (
     );
 
     return onSnapshot(q, async (snapshot) => {
-        const users: RecentUser[] = [];
+        const users = await Promise.all(
+            snapshot.docs.map(async (item) => {
+                const chat = item.data();
 
-        for (const item of snapshot.docs) {
-            const chat = item.data();
+                // Message nahi hua to Recent me mat dikhao
+                if (!chat.lastMessage?.createdAt) {
+                    return null;
+                }
 
-            const otherUserId = chat.participants.find(
-                (id: string) => id !== uid
-            );
+                const otherUserId = chat.participants.find(
+                    (id: string) => id !== uid
+                );
 
-            if (!otherUserId) continue;
+                if (!otherUserId) return null;
 
-            const userSnap = await getDoc(
-                doc(db, USERS, otherUserId)
-            );
+                const userSnap = await getDoc(
+                    doc(db, USERS, otherUserId)
+                );
 
-            if (!userSnap.exists()) continue;
+                if (!userSnap.exists()) return null;
 
-            const user = userSnap.data();
+                const user = userSnap.data();
 
-            users.push({
-                uid: user.uid,
-                displayName: user.displayName,
-                username: user.username,
-                photoURL: user.photoURL,
-                isOnline: user.isOnline,
-                lastSeen: user.lastSeen,
-            });
-        }
+                return {
+                    uid: user.uid,
+                    chatId: item.id,
+                    displayName: user.displayName,
+                    username: user.username,
+                    photoURL: user.photoURL,
+                    isOnline: user.isOnline,
+                    lastSeen: user.lastSeen,
+                    lastMessageTime:
+                        chat.lastMessage?.createdAt?.toMillis?.() ?? 0,
+                } as RecentUser;
+            })
+        );
 
-        callback(users);
+        const filteredUsers = users
+            .filter(Boolean)
+            .sort(
+                (a: any, b: any) =>
+                    b.lastMessageTime - a.lastMessageTime
+            ) as RecentUser[];
+
+        callback(filteredUsers);
     });
 };
-

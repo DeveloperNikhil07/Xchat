@@ -1,12 +1,14 @@
-import { ReplyMessage } from "../message/message";
-
 export interface MessageInputProps {
-    onSend?: (message: string) => void;
+    onSend?: (text: string) => void;
+
     onEmojiPress?: () => void;
     onAttachmentPress?: () => void;
     onCameraPress?: () => void;
     onVoicePress?: () => void;
 
-    replyMessage?: ReplyMessage | null;
-    setReplyMessage: (reply: ReplyMessage | null) => void;
+    replyMessage: any;
+    setReplyMessage: (value: any) => void;
+
+    showEmoji: boolean;
+    setShowEmoji: React.Dispatch<React.SetStateAction<boolean>>;
 }

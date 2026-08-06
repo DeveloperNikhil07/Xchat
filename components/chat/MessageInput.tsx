@@ -10,9 +10,6 @@ import {
 import { MessageInputProps } from "@/types/chat/MessageInputs/MessageInput";
 import { styles } from "./MessageInput.style";
 import ReplyPreview from "./Reply/ReplyPreview";
-
-
-
 export default function MessageInput({
     onSend,
     onEmojiPress,
@@ -21,9 +18,11 @@ export default function MessageInput({
     onVoicePress,
     replyMessage,
     setReplyMessage,
+
+    showEmoji,
+    setShowEmoji,
 }: MessageInputProps) {
     const [message, setMessage] = useState("");
-
     const handleSend = () => {
         const text = message.trim();
 
@@ -52,7 +51,10 @@ export default function MessageInput({
 
                     <TouchableOpacity
                         style={styles.iconButton}
-                        onPress={onEmojiPress}
+                        onPress={() => {
+                            setShowEmoji(!showEmoji);
+                            onEmojiPress?.();
+                        }}
                     >
                         <Ionicons
                             name="happy-outline"

@@ -34,51 +34,70 @@ export default function Home() {
         refresh,
     } = useChats();
 
+    // Har category ka actual count
+    const unreadCount = useMemo(
+        () => chats.filter((c) => c.unread > 0).length,
+        [chats]
+    );
+
+    const archivedCount = useMemo(
+        () => chats.filter((c) => c.archived).length,
+        [chats]
+    );
+
     const filters = useMemo(() => {
 
-        const requestFilter = {
-            id: "requests",
-            label: "Requests",
-            count: requests.length,
-        };
+        const list: {
+            id: string;
+            label: string;
+            count?: number;
+        }[] = [];
 
-
-        const defaultFilters = [
-            {
-                id: "all",
-                label: "All",
-            },
-            {
-                id: "unread",
-                label: "Unread",
-                count: 8,
-            },
-            {
-                id: "groups",
-                label: "Groups",
-            },
-            {
-                id: "archived",
-                label: "Archived",
-            },
-        ];
-
-
+        // Requests — sirf tab dikhao jab pending requests ho
         if (requests.length > 0) {
-            return [
-                requestFilter,
-                ...defaultFilters,
-            ];
+            list.push({
+                id: "requests",
+                label: "Requests",
+                count: requests.length,
+            });
         }
 
+        // Ye teeno hamesha fixed rahenge
+        list.push({ id: "all", label: "All" });
 
-        return [
-            ...defaultFilters,
-            requestFilter,
-        ];
+        list.push({
+            id: "unread",
+            label: "Unread",
+            count: unreadCount > 0 ? unreadCount : undefined,
+        });
 
+        list.push({
+            id: "groups",
+            label: "Groups",
+        });
 
-    }, [requests]);
+        // Archived — sirf tab dikhao jab kam se kam ek archived chat ho
+        if (archivedCount > 0) {
+            list.push({
+                id: "archived",
+                label: "Archived",
+                count: archivedCount,
+            });
+        }
+
+        return list;
+
+    }, [requests, unreadCount, archivedCount]);
+
+    // Agar selected filter ab list me nahi (jaise Archived se sab unarchive
+    // ho gaye, ya Requests khali ho gaye), to "all" pe wapas switch karo
+    useEffect(() => {
+        const validIds = filters.map((f) => f.id);
+
+        if (!validIds.includes(selectedFilter)) {
+            setSelectedFilter("all");
+        }
+    }, [filters]);
 
     const handleSendRequest = async (user: {
         uid: string;
@@ -125,7 +144,7 @@ export default function Home() {
             senderId: item.senderId,
             receiverId: item.receiverId,
             image: item.senderPhoto || "",
-            name:item.senderName ||item.senderUsername ||"New Request",
+            name: item.senderName || item.senderUsername || "New Request",
             username: item.senderUsername || "",
             message: "New friend request",
             time: "",
@@ -154,23 +173,20 @@ export default function Home() {
 
             if (!matchSearch) return false;
 
-
             if (selectedFilter === "unread") {
                 return chat.unread > 0;
             }
-
 
             if (selectedFilter === "groups") {
                 return chat.type === "group";
             }
 
-
             if (selectedFilter === "archived") {
                 return chat.archived;
             }
 
-
-            return true;
+            // "all" — archived chats ko All list me mat dikhao (WhatsApp jaisa)
+            return !chat.archived;
 
         });
 
@@ -180,6 +196,7 @@ export default function Home() {
         search,
         selectedFilter,
     ]);
+
     return (
         <ScreenContainer>
             <HomeHeader userName={currentUser?.displayName || ""} />

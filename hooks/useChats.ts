@@ -1,13 +1,14 @@
 import {
-    useCallback,
-    useEffect,
-    useState,
+  useCallback,
+  useEffect,
+  useState,
 } from "react";
 
 import {
-    fetchRecentUsers,
-    listenChats,
-    listenRecentUsers,
+  fetchChats,
+  fetchRecentUsers,
+  listenChats,
+  listenRecentUsers,
 } from "@/services/chat.service";
 
 import { ChatListItem } from "@/types/chat/chatListItem";
@@ -35,8 +36,14 @@ export function useChats(): UseChatsResult {
     }
 
     try {
-      const recentData = await fetchRecentUsers();
+      const [chatData, recentData] = await Promise.all([
+        fetchChats(),
+        fetchRecentUsers(),
+      ]);
+
+      setChats(chatData);
       setRecentUsers(recentData);
+
     } catch (e) {
       console.log("Chats Error:", e);
     } finally {

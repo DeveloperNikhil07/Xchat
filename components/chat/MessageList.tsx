@@ -82,6 +82,8 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
                 time={item.time}
                 isSender={item.isSender}
                 status={item.status}
+                deliveredTo={item.deliveredTo}
+                seenBy={item.seenBy}
                 isStarred={item.isStarred}
                 reaction={item.reaction}
                 onImagePress={() => onImagePress?.(item.image!)}

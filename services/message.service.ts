@@ -1,8 +1,11 @@
 import {
     addDoc,
+    arrayUnion,
     collection,
     deleteDoc,
     doc,
+    getDoc,
+    getDocs,
     increment,
     onSnapshot,
     orderBy,
@@ -11,7 +14,8 @@ import {
     updateDoc
 } from "firebase/firestore";
 
-import { db } from "@/config/firebase";
+
+import { auth, db } from "@/config/firebase";
 
 import {
     FirestoreMessage,
@@ -78,6 +82,8 @@ export const listenMessages = (
     callback: (messages: FirestoreMessage[]) => void
 ) => {
 
+    const uid = auth.currentUser?.uid;
+
     const q = query(
         collection(
             db,
@@ -85,40 +91,62 @@ export const listenMessages = (
             chatId,
             MESSAGES_COLLECTION
         ),
-        orderBy(
-            "createdAt",
-            "asc"
-        )
+        orderBy("createdAt", "asc")
     );
-
 
     const unsubscribe = onSnapshot(
         q,
-        (snapshot) => {
+        async (snapshot) => {
 
-            const messages =
-                snapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                })) as FirestoreMessage[];
+            const messages: FirestoreMessage[] = [];
 
+            for (const item of snapshot.docs) {
+
+                const data = item.data() as FirestoreMessage;
+
+                const { id, ...rest } = data;
+
+                messages.push({
+                    id: item.id,
+                    ...rest,
+                });
+
+                // -------------------------
+                // Delivered Update
+                // -------------------------
+                if (
+                    uid &&
+                    data.senderId !== uid &&
+                    !(data.deliveredTo ?? []).includes(uid)
+                ) {
+                    await updateDoc(
+                        doc(
+                            db,
+                            "chats",
+                            chatId,
+                            MESSAGES_COLLECTION,
+                            item.id
+                        ),
+                        {
+                            deliveredTo: arrayUnion(uid),
+                            status: "delivered",
+                        }
+                    );
+                }
+            }
 
             callback(messages);
 
         },
         (error) => {
-
             console.log(
                 "Message listener error:",
                 error.message
             );
-
         }
     );
 
-
     return unsubscribe;
-
 };
 
 
@@ -140,18 +168,36 @@ export const sendMessage = async (
 
     await addDoc(messageRef, {
         ...data,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        status: "sent",
+        deliveredTo: [],
+        seenBy: [],
     });
 
 
-    await updateDoc(
-        doc(db, "chats", chatId),
-        {
-            lastMessage: data.text,
-            lastMessageTime: serverTimestamp(),
-            unreadCount: increment(1),
-        }
+    const chatRef = doc(db, "chats", chatId);
+
+    const chatSnap = await getDoc(chatRef);
+
+    if (!chatSnap.exists()) return;
+
+    const chatData = chatSnap.data();
+
+    const receiverId = chatData.participants.find(
+        (id: string) => id !== data.senderId
     );
+    console.log("SEND MESSAGE CHAT:", chatId);
+    await updateDoc(chatRef, {
+        lastMessage: {
+            text: data.text,
+            senderId: data.senderId,
+            createdAt: serverTimestamp(),
+        },
+
+        lastMessageTime: serverTimestamp(),
+
+        [`unreadCount.${receiverId}`]: increment(1)
+    })
 
 };
 
@@ -204,4 +250,109 @@ export const editMessage = async (
         }
     );
 
+};
+
+export const markMessagesDelivered = async (
+    chatId: string,
+    currentUid: string
+) => {
+
+    const q = query(
+        collection(db, "chats", chatId, "messages")
+    );
+
+    const snap = await getDocs(q);
+
+    for (const item of snap.docs) {
+
+        const data = item.data();
+
+        if (
+            data.senderId !== currentUid &&
+            !(data.deliveredTo || []).includes(currentUid)
+        ) {
+
+            await updateDoc(item.ref, {
+
+                deliveredTo: arrayUnion(currentUid),
+
+                status: "delivered",
+
+            });
+
+        }
+
+    }
+
+};
+
+export const markMessagesSeen = async (
+    chatId: string,
+    currentUid: string
+) => {
+
+    const q = query(
+        collection(db, "chats", chatId, "messages")
+    );
+
+    const snap = await getDocs(q);
+
+    for (const item of snap.docs) {
+
+        const data = item.data();
+
+        if (
+            data.senderId !== currentUid &&
+            !(data.seenBy || []).includes(currentUid)
+        ) {
+
+            await updateDoc(item.ref, {
+
+                seenBy: arrayUnion(currentUid),
+
+                status: "seen",
+
+            });
+
+        }
+
+    }
+
+};
+export const markMessagesAsSeen = async (
+    chatId: string,
+    uid: string
+) => {
+
+    const snap = await getDocs(
+        collection(
+            db,
+            "chats",
+            chatId,
+            "messages"
+        )
+    );
+
+    for (const item of snap.docs) {
+
+        const data = item.data();
+
+        if (
+            data.senderId !== uid &&
+            !(data.seenBy ?? []).includes(uid)
+        ) {
+            await updateDoc(item.ref, {
+                seenBy: arrayUnion(uid),
+                status: "seen",
+            });
+        }
+    }
+
+    // unread reset
+    await updateDoc(
+        doc(db, "chats", chatId),
+        {
+            [`unreadCount.${uid}`]: 0,
+        }
+    );
 };

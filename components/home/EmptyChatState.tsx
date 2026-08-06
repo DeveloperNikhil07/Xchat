@@ -2,12 +2,7 @@ import Colors from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useRef } from "react";
-import {
-    Animated,
-    Image,
-    Text,
-    View,
-} from "react-native";
+import { Animated, Text, View } from "react-native";
 import { styles } from "./EmptyChatState.style";
 
 export default function EmptyChatState() {
@@ -17,7 +12,7 @@ export default function EmptyChatState() {
         Animated.loop(
             Animated.sequence([
                 Animated.timing(floatAnim, {
-                    toValue: -8,
+                    toValue: -6,
                     duration: 1800,
                     useNativeDriver: true,
                 }),
@@ -32,80 +27,31 @@ export default function EmptyChatState() {
 
     return (
         <View style={styles.container}>
-            <Animated.View
-                style={[
-                    styles.card,
-                    {
-                        transform: [{ translateY: floatAnim }],
-                    },
-                ]}
-            >
-                {/* Logo */}
-
-                <LinearGradient
-                    colors={[
-                        Colors.brandPrimary,
-                        Colors.brandLight,
+            <View style={styles.card}>
+                <Animated.View
+                    style={[
+                        styles.iconWrapper,
+                        { transform: [{ translateY: floatAnim }] },
                     ]}
-                    style={styles.logoWrapper}
                 >
-                    <Image
-                        source={require("@/assets/images/logo.png")}
-                        style={styles.logo}
-                    />
-                </LinearGradient>
-
-                {/* Heading */}
-
-                <Text style={styles.title}>
-                    Welcome to XChat
-                </Text>
-
-                <Text style={styles.subtitle}>
-                    Your conversations will appear here once
-                    you start chatting with your friends.
-                </Text>
-
-                <View style={styles.divider} />
-
-                {/* Dummy Conversation */}
-
-                <View style={styles.chatPreview}>
-                    <View style={styles.leftBubble}>
-                        <Text style={styles.leftText}>
-                            Hello 👋
-                        </Text>
-                    </View>
-
-                    <View style={styles.rightBubble}>
-                        <Text style={styles.rightText}>
-                            Hi there 😊
-                        </Text>
-                    </View>
-
-                    <View style={styles.leftBubble}>
-                        <Text style={styles.leftText}>
-                            Welcome to XChat
-                        </Text>
-                    </View>
-
-                    <View style={styles.rightBubble}>
+                    <LinearGradient
+                        colors={[Colors.brandPrimary, Colors.brandLight]}
+                        style={styles.iconCircle}
+                    >
                         <Ionicons
-                            name="ellipsis-horizontal"
-                            size={20}
+                            name="chatbubble-ellipses"
+                            size={32}
                             color="#fff"
                         />
-                    </View>
-                </View>
+                    </LinearGradient>
+                </Animated.View>
 
-                <View style={styles.bottomDivider} />
+                <Text style={styles.title}>No chats yet</Text>
 
-                <Text style={styles.hint}>
-                    Tap the
-                    <Text style={styles.plus}> ＋ </Text>
-                    button below to start your first chat.
+                <Text style={styles.subtitle}>
+                    Tap the + button to start a new conversation
                 </Text>
-            </Animated.View>
+            </View>
         </View>
     );
 }
