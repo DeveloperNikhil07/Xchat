@@ -1,4 +1,4 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef, useCallback, useRef } from "react";
 import { FlatList, NativeScrollEvent, NativeSyntheticEvent } from "react-native";
 
 import { Message } from "@/types/chat/message/message";
@@ -34,13 +34,70 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
       onScroll,
       onVideoPress,
       onLocationPress,
-      onContactPress
+      onContactPress,
     },
     ref
   ) => {
+    // Internal ref use karte hain taaki scrollToIndex ke liye
+    // list ke andar hi access mil jaye, chahe parent bhi ref pass kare.
+    const internalRef = useRef<FlatList<Message>>(null);
+
+    const setRefs = useCallback(
+      (node: FlatList<Message>) => {
+        internalRef.current = node;
+        if (typeof ref === "function") {
+          ref(node);
+        } else if (ref) {
+          (ref as React.MutableRefObject<FlatList<Message> | null>).current =
+            node;
+        }
+      },
+      [ref]
+    );
+
+    // Reply pe tap karne par original message tak scroll karo
+    const handleReplyPress = useCallback(
+      (messageId: string) => {
+        const index = messages.findIndex((m) => m.id === messageId);
+        if (index === -1) return;
+
+        internalRef.current?.scrollToIndex({
+          index,
+          animated: true,
+          viewPosition: 0.5, // screen ke beech mein laao, taaki context clear dikhe
+        });
+      },
+      [messages]
+    );
+
+    // FlatList variable-height items ke saath scrollToIndex kabhi fail
+    // ho sakta hai (agar target abhi render/measure nahi hua). Fallback:
+    // approximate offset pe pehle scroll karo, phir retry karo.
+    const handleScrollToIndexFailed = useCallback(
+      (info: {
+        index: number;
+        highestMeasuredFrameIndex: number;
+        averageItemLength: number;
+      }) => {
+        internalRef.current?.scrollToOffset({
+          offset: info.averageItemLength * info.index,
+          animated: true,
+        });
+
+        setTimeout(() => {
+          internalRef.current?.scrollToIndex({
+            index: info.index,
+            animated: true,
+            viewPosition: 0.5,
+          });
+        }, 300);
+      },
+      []
+    );
+
     return (
       <FlatList
-        ref={ref}
+        ref={setRefs}
         data={messages}
         style={{ flex: 1 }}
         keyExtractor={(item) => item.id}
@@ -50,6 +107,7 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
         keyboardDismissMode="interactive"
         scrollEventThrottle={16}
         onScroll={onScroll}
+        onScrollToIndexFailed={handleScrollToIndexFailed}
         contentContainerStyle={{
           paddingTop: 12,
           paddingBottom: bottomInset + 280,
@@ -58,15 +116,12 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
           const previous = messages[index - 1];
 
           const showDate =
-            index === 0 ||
-            previous?.date !== item.date;
+            index === 0 || previous?.date !== item.date;
 
           return (
             <>
               {showDate && (
-                <DateSeparator
-                  label={item.date || "Today"}
-                />
+                <DateSeparator label={item.date || "Today"} />
               )}
 
               <MessageBubble
@@ -87,11 +142,16 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
                 isStarred={item.isStarred}
                 reaction={item.reaction}
                 onImagePress={() => onImagePress?.(item.image!)}
-                onVideoPress={() => { if (item.video) onVideoPress?.(item.video.uri); }}
-                onDocumentPress={() => { if (item.document) onDocumentPress?.(item.document); }}
+                onVideoPress={() => {
+                  if (item.video) onVideoPress?.(item.video.uri);
+                }}
+                onDocumentPress={() => {
+                  if (item.document) onDocumentPress?.(item.document);
+                }}
                 onLocationPress={() => onLocationPress?.(item)}
                 onContactPress={() => onContactPress?.(item)}
                 onLongPress={() => onLongPressMessage?.(item)}
+                onReplyPress={handleReplyPress}
               />
             </>
           );

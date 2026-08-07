@@ -1,10 +1,17 @@
-import Colors from "@/constants/theme";
 import { StyleSheet } from "react-native";
+
+const SENDER_BUBBLE = "#005C4B";
+const RECEIVER_BUBBLE = "#202C33";
+const TEXT_COLOR = "#E9EDEF";
+const RECEIVER_TIME = "#8696A0";
+const REACTION_BG = "#233138";
+const REACTION_BORDER = "#0B141A";
 
 export const styles = StyleSheet.create({
     container: {
         width: "100%",
-        marginVertical: 6,
+        marginVertical: 2,
+        paddingHorizontal: 8,
     },
 
     senderContainer: {
@@ -16,78 +23,87 @@ export const styles = StyleSheet.create({
     },
 
     bubble: {
-        maxWidth: "78%",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        alignSelf: "flex-start",
+        maxWidth: "100%",
+        minWidth: 60,
+        paddingHorizontal: 8,
+        paddingTop: 6,
+        paddingBottom: 6,
+        borderRadius: 8,
+        position: "relative",
     },
 
     senderBubble: {
-        backgroundColor: Colors.brandPrimary,
-
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-        borderBottomLeftRadius: 22,
+        backgroundColor: SENDER_BUBBLE,
+        borderTopRightRadius: 0,
+        borderTopLeftRadius: 8,
+        borderBottomLeftRadius: 8,
         borderBottomRightRadius: 8,
     },
 
     receiverBubble: {
-        backgroundColor: "#FFFFFF",
-
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
+        backgroundColor: RECEIVER_BUBBLE,
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 8,
         borderBottomLeftRadius: 8,
-        borderBottomRightRadius: 22,
-
-        shadowColor: "#000",
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
+        borderBottomRightRadius: 8,
     },
 
     message: {
         fontSize: 15,
-        lineHeight: 22,
-        color: Colors.textPrimary,
+        lineHeight: 20,
+        color: TEXT_COLOR,
+        flexShrink: 1,
+        flexWrap: "wrap",
     },
 
     senderMessage: {
-        color: "#FFF",
+        color: TEXT_COLOR,
     },
 
     footer: {
         flexDirection: "row",
-        justifyContent: "flex-end",
         alignItems: "center",
+        alignSelf: "flex-end",
+        marginTop: 2,
     },
 
     time: {
         fontSize: 11,
-        color: "#888",
-        marginRight: 4,
+        color: RECEIVER_TIME,
     },
 
     senderTime: {
-        color: "rgba(255,255,255,.75)",
+        color: "rgba(255,255,255,0.65)",
     },
+
     reactionContainer: {
         position: "absolute",
-        bottom: -10,
-        backgroundColor: "#FFF",
+        bottom: -12,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: REACTION_BG,
         borderRadius: 12,
         paddingHorizontal: 6,
         paddingVertical: 2,
-        elevation: 2,
+        borderWidth: 1.5,
+        borderColor: REACTION_BORDER,
+        elevation: 4,
+        shadowColor: "#000",
+        shadowOpacity: 0.3,
+        shadowRadius: 2,
+        shadowOffset: { width: 0, height: 1 },
     },
 
     senderReaction: {
-        right: 8,
+        right: 6,
     },
 
     receiverReaction: {
-        left: 8,
+        left: 6,
     },
 
     reactionText: {
-        fontSize: 14,
+        fontSize: 13,
     },
 });

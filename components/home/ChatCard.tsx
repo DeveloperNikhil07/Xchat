@@ -73,7 +73,7 @@ export default function ChatCard({
                             typing && styles.typing,
                         ]}
                     >
-                        {message}
+                        {typing ? "Typing..." : message}
                     </Text>
                 </View>
             </View>

@@ -19,11 +19,9 @@ interface MessageBubbleProps {
 
     status?: "sending" | "sent" | "delivered" | "seen";
     deliveredTo?: string[];
-
     seenBy?: string[];
 
     image?: string | null;
-
     document?: {
         name: string;
         uri: string;
@@ -36,9 +34,11 @@ interface MessageBubbleProps {
         size?: number;
     };
 
+    // 👇 messageId add kiya — reply tap karke original message tak jump karne ke liye
     reply?: {
         sender: string;
         message: string;
+        messageId: string;
     };
 
     isStarred?: boolean;
@@ -68,6 +68,7 @@ interface MessageBubbleProps {
     onVideoPress?: () => void;
     onLocationPress?: () => void;
     onContactPress?: () => void;
+    onReplyPress?: (messageId: string) => void; // 👈 naya prop
 }
 
 export default function MessageBubble({
@@ -79,24 +80,20 @@ export default function MessageBubble({
     seenBy = [],
     image,
     document,
-
     audio,
     video,
-
     reply,
-
     isStarred,
     reaction,
     location,
     contact,
-
     onImagePress,
     onDocumentPress,
     onLongPress,
     onVideoPress,
     onLocationPress,
-    onContactPress
-
+    onContactPress,
+    onReplyPress,
 }: MessageBubbleProps) {
     const messageStatus =
         seenBy.length > 0
@@ -104,25 +101,25 @@ export default function MessageBubble({
             : deliveredTo.length > 0
                 ? "delivered"
                 : status;
+
+    const hasText = message.trim().length > 0;
+
     return (
         <View
             style={[
                 styles.container,
-                isSender
-                    ? styles.senderContainer
-                    : styles.receiverContainer,
+                isSender ? styles.senderContainer : styles.receiverContainer,
             ]}
         >
             <Pressable
                 delayLongPress={250}
                 onLongPress={onLongPress}
+                style={{ maxWidth: "80%" }}
             >
                 <View
                     style={[
                         styles.bubble,
-                        isSender
-                            ? styles.senderBubble
-                            : styles.receiverBubble,
+                        isSender ? styles.senderBubble : styles.receiverBubble,
                     ]}
                 >
                     {/* Reply */}
@@ -130,8 +127,11 @@ export default function MessageBubble({
                         <ReplyBubble
                             replySender={reply.sender}
                             replyText={reply.message}
+                            isSender={isSender}
+                            onPress={() => onReplyPress?.(reply.messageId)}
                         />
                     )}
+
                     {audio && (
                         <AudioMessage
                             uri={audio.uri}
@@ -140,7 +140,6 @@ export default function MessageBubble({
                         />
                     )}
 
-                    {/* Document */}
                     {document && (
                         <DocumentMessage
                             name={document.name}
@@ -149,13 +148,13 @@ export default function MessageBubble({
                         />
                     )}
 
-                    {/* Image */}
                     {image && (
                         <ImageMessage
                             uri={image}
-                            onPress={onImagePress ?? (() => { })}
+                            onPress={onImagePress ?? (() => {})}
                         />
                     )}
+
                     {video && (
                         <VideoMessage
                             uri={video.uri}
@@ -174,6 +173,7 @@ export default function MessageBubble({
                             onPress={onLocationPress}
                         />
                     )}
+
                     {contact && (
                         <ContactMessage
                             name={contact.name}
@@ -182,16 +182,11 @@ export default function MessageBubble({
                             onPress={onContactPress}
                         />
                     )}
-                    {/* Text
-              Document message me filename dobara mat dikhao.
-              Image ke case me agar future me caption bhejna ho to text show hoga.
-          */}
-                    {!document && message.trim().length > 0 && (
+
+                    {/* Text message */}
+                    {!document && hasText && (
                         <Text
-                            style={[
-                                styles.message,
-                                isSender && styles.senderMessage,
-                            ]}
+                            style={[styles.message, isSender && styles.senderMessage]}
                         >
                             {message}
                         </Text>
@@ -209,10 +204,7 @@ export default function MessageBubble({
                         )}
 
                         <Text
-                            style={[
-                                styles.time,
-                                isSender && styles.senderTime,
-                            ]}
+                            style={[styles.time, isSender && styles.senderTime]}
                         >
                             {time}
                         </Text>
@@ -238,9 +230,7 @@ export default function MessageBubble({
                                     : styles.receiverReaction,
                             ]}
                         >
-                            <Text style={styles.reactionText}>
-                                {reaction}
-                            </Text>
+                            <Text style={styles.reactionText}>{reaction}</Text>
                         </View>
                     )}
                 </View>

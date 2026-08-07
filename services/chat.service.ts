@@ -288,7 +288,7 @@ export const fetchChats =
 
                 unread: 0,
 
-                typing: false,
+                typing: data.typing?.isTyping && data.typing?.uid !== uid ? data.typing.name : "",
 
                 voice: false,
 
@@ -346,17 +346,26 @@ export const listenChats = (
 
                 const user = userSnap.data();
 
+                const isTyping =
+                    data.typing?.isTyping &&
+                    data.typing?.uid !== uid;
+
                 return {
                     id: item.id,
                     name: user.displayName,
                     image: user.photoURL,
                     online: user.isOnline,
-                    message:
-                        data.unreadCount?.[uid] > 0
+
+                    message: isTyping
+                        ? "Typing..."
+                        : data.unreadCount?.[uid] > 0
                             ? `${data.unreadCount[uid]} new messages`
                             : data.lastMessage?.text || "Start chatting",
+
                     unread: data.unreadCount?.[uid] || 0,
-                    typing: false,
+
+                    typing: isTyping,
+
                     voice: false,
                     archived: false,
                     type: "private",
@@ -365,8 +374,6 @@ export const listenChats = (
                         data.lastMessage?.createdAt?.toMillis?.() ??
                         data.createdAt?.toMillis?.() ??
                         0,
-                } as ChatListItem & {
-                    lastMessageTime: number;
                 };
             })
         );

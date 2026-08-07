@@ -12,6 +12,7 @@ import MessageList from "@/components/chat/MessageList";
 import RequestActions from "@/components/chat/request/RequestActions";
 import ScrollToBottomButton from "@/components/chat/ScrollToBottomButton";
 import VideoViewer from "@/components/chat/VideoViewer";
+import TypingIndicator from "@/components/common/TypingIndicator";
 import ScreenContainer from "@/components/layout/ScreenContainer";
 import { db } from "@/config/firebase";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,6 +27,11 @@ import {
     acceptChatRequest,
     rejectChatRequest,
 } from "@/services/request.service";
+import {
+    listenTyping,
+    startTyping,
+    stopTyping,
+} from "@/services/typing.service";
 import { Message, ReplyMessage } from "@/types/chat/message/message";
 import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
@@ -36,6 +42,8 @@ import { doc, updateDoc } from "firebase/firestore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, FlatList, Keyboard, TouchableWithoutFeedback, View } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
+
+
 export default function ChatScreen() {
     const { currentUser } = useAuth();
     const router = useRouter();
@@ -72,6 +80,7 @@ export default function ChatScreen() {
     const [searchText, setSearchText] = useState("");
     const [actionLoading, setActionLoading] = useState(false);
     const [showEmoji, setShowEmoji] = useState(false);
+    const [typingUser, setTypingUser] = useState("");
 
 
     const liveWatchRef = useRef<ExpoLocation.LocationSubscription | null>(null);
@@ -105,6 +114,32 @@ export default function ChatScreen() {
                 "Send message error:",
                 error
             );
+        }
+    };
+
+    const handleTyping = async () => {
+        console.log("Typing Started");
+        if (!chatId || !currentUser) return;
+        try {
+            await startTyping(
+                chatId,
+                currentUser.uid,
+                currentUser.displayName || "User"
+            );
+            console.log("Firestore Updated");
+
+        } catch (error) {
+            console.log("Typing Error:", error);
+        }
+    };
+
+    const handleStopTyping = async () => {
+        if (!chatId) return;
+
+        try {
+            await stopTyping(chatId);
+        } catch (error) {
+            console.log("Stop Typing Error:", error);
         }
     };
 
@@ -602,6 +637,34 @@ export default function ChatScreen() {
         markMessagesSeen,
     ]);
 
+    useEffect(() => {
+        if (!chatId || !currentUser) return;
+
+        const unsubscribe = listenTyping(chatId, (typing) => {
+
+            console.log("Received Typing:", typing);
+
+            if (!typing) {
+                setTypingUser("");
+                return;
+            }
+
+            if (
+                typing.isTyping &&
+                typing.uid !== currentUser.uid
+            ) {
+                console.log("SHOW:", typing.name);
+                setTypingUser(typing.name);
+            } else {
+                console.log("HIDE");
+                setTypingUser("");
+            }
+        });
+
+        return unsubscribe;
+
+    }, [chatId, currentUser]);
+    console.log("Current Typing User:", typingUser);
     console.log("Chat ID:", chatId);
     console.log("User Name:", name);
 
@@ -617,7 +680,7 @@ export default function ChatScreen() {
                         name={(name as string) || "User"}
                         image={require("@/assets/images/man.png")}
                         online
-
+                        typingUser={typingUser}
                         isSearching={isSearching}
                         searchText={searchText}
                         allowSearch={false}
@@ -684,7 +747,15 @@ export default function ChatScreen() {
                             }}
 
                         />)}
-
+                    {typingUser && (
+                        <View
+                            style={{
+                                paddingBottom: 6,
+                            }}
+                        >
+                            <TypingIndicator />
+                        </View>
+                    )}
                     {!isRequest && (
                         <KeyboardStickyView onLayout={(event) => { setInputHeight(event.nativeEvent.layout.height); }}>
                             <ScrollToBottomButton
@@ -695,10 +766,15 @@ export default function ChatScreen() {
                                 replyMessage={replyMessage}
                                 setReplyMessage={setReplyMessage}
                                 onSend={handleSend}
+
+                                onTyping={handleTyping}
+                                onStopTyping={handleStopTyping}
+
                                 onEmojiPress={() => { }}
                                 onAttachmentPress={() => setShowAttachment(true)}
                                 onCameraPress={openCamera}
                                 onVoicePress={() => { }}
+
                                 showEmoji={showEmoji}
                                 setShowEmoji={setShowEmoji}
                             />
@@ -732,9 +808,12 @@ export default function ChatScreen() {
                             if (!selectedMessage) return;
 
                             setReplyMessage({
-                                sender: selectedMessage?.isSender ? "You" : (name as string),
-                                message: selectedMessage?.message,
+                                sender: selectedMessage.isSender ? "You" : (name as string),
+                                message: selectedMessage.message,
+                                messageId: selectedMessage.id,
                             });
+
+                            setShowActionSheet(false);
                         }}
 
                         onCopy={async () => {

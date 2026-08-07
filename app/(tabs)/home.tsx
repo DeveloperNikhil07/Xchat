@@ -25,7 +25,9 @@ export default function Home() {
     const [selectedFilter, setSelectedFilter] = useState("all");
     const [showSearchModal, setShowSearchModal] = useState(false);
     const [requests, setRequests] = useState<any[]>([]);
+    const [typingUser, setTypingUser] = useState("");
 
+    
     const {
         chats,
         recentUsers,
@@ -34,7 +36,6 @@ export default function Home() {
         refresh,
     } = useChats();
 
-    // Har category ka actual count
     const unreadCount = useMemo(
         () => chats.filter((c) => c.unread > 0).length,
         [chats]
@@ -89,8 +90,7 @@ export default function Home() {
 
     }, [requests, unreadCount, archivedCount]);
 
-    // Agar selected filter ab list me nahi (jaise Archived se sab unarchive
-    // ho gaye, ya Requests khali ho gaye), to "all" pe wapas switch karo
+
     useEffect(() => {
         const validIds = filters.map((f) => f.id);
 

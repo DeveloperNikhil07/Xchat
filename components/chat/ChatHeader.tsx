@@ -11,6 +11,7 @@ interface ChatHeaderProps {
     allowSearch?: boolean;
     isSearching?: boolean;
     searchText?: string;
+    typingUser?: string;
     onSearchChange?: (text: string) => void;
     onCloseSearch?: () => void;
     onBack: () => void;
@@ -29,6 +30,7 @@ export default function ChatHeader({
     allowSearch = false,
     isSearching = false,
     searchText = "",
+    typingUser = "",
     onSearchChange,
     onCloseSearch,
     onBack,
@@ -38,6 +40,7 @@ export default function ChatHeader({
     onMenu,
     onProfilePress,
 }: ChatHeaderProps) {
+    console.log("typingUser =", typingUser);
     return (
         <View style={styles.container}>
             <View style={styles.leftContainer}>
@@ -80,7 +83,11 @@ export default function ChatHeader({
                             </Text>
 
                             <Text style={styles.status}>
-                                {online ? "Online" : lastSeen || "Offline"}
+                                {typingUser
+                                    ? "Typing..."
+                                    : online
+                                        ? "Online"
+                                        : lastSeen || "Offline"}
                             </Text>
                         </View>
                     </TouchableOpacity>

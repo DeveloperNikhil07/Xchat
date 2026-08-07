@@ -165,7 +165,6 @@ export const sendMessage = async (
         "messages"
     );
 
-
     await addDoc(messageRef, {
         ...data,
         createdAt: serverTimestamp(),

@@ -1,6 +1,7 @@
 export interface ReplyMessage {
     sender: string;
     message: string;
+    messageId: string;
 }
 
 export type MessageType =

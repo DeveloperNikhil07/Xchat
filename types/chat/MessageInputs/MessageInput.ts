@@ -5,6 +5,8 @@ export interface MessageInputProps {
     onAttachmentPress?: () => void;
     onCameraPress?: () => void;
     onVoicePress?: () => void;
+    onTyping?: () => void;
+    onStopTyping?: () => void;
 
     replyMessage: any;
     setReplyMessage: (value: any) => void;
