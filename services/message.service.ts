@@ -1,8 +1,8 @@
 import {
     addDoc,
+    arrayRemove,
     arrayUnion,
     collection,
-    deleteDoc,
     doc,
     getDoc,
     getDocs,
@@ -11,6 +11,7 @@ import {
     orderBy,
     query,
     serverTimestamp,
+    Timestamp,
     updateDoc
 } from "firebase/firestore";
 
@@ -79,7 +80,7 @@ export interface SendMessagePayload {
 
 export const listenMessages = (
     chatId: string,
-    callback: (messages: FirestoreMessage[]) => void
+    callback: (messages: (FirestoreMessage & { isStarred: boolean })[]) => void
 ) => {
 
     const uid = auth.currentUser?.uid;
@@ -98,17 +99,25 @@ export const listenMessages = (
         q,
         async (snapshot) => {
 
-            const messages: FirestoreMessage[] = [];
+            const messages: (FirestoreMessage & { isStarred: boolean })[] = [];
 
             for (const item of snapshot.docs) {
 
                 const data = item.data() as FirestoreMessage;
 
                 const { id, ...rest } = data;
-
+                if (
+                    uid &&
+                    (data.deletedFor ?? []).includes(uid)
+                ) {
+                    continue;
+                }
                 messages.push({
                     id: item.id,
                     ...rest,
+                    isStarred: uid
+                        ? (data.starredBy ?? []).includes(uid)
+                        : false,
                 });
 
                 // -------------------------
@@ -204,24 +213,60 @@ export const sendMessage = async (
 
 // DELETE MESSAGE
 
-export const deleteMessage = async (
+export const deleteMessageForMe = async (
     chatId: string,
-    messageId: string
+    messageId: string,
+    uid: string
 ) => {
-
-    await deleteDoc(
-        doc(
+    try {
+        const messageRef = doc(
             db,
             "chats",
             chatId,
             MESSAGES_COLLECTION,
             messageId
-        )
-    );
+        );
 
+        await updateDoc(messageRef, {
+            deletedFor: arrayUnion(uid),
+        });
+
+        console.log("🗑️ Deleted for me");
+    } catch (error) {
+        console.log("Delete for me error:", error);
+        throw error;
+    }
 };
 
+export const deleteMessageForEveryone = async (
+    chatId: string,
+    messageId: string
+) => {
+    const messageRef = doc(
+        db,
+        "chats",
+        chatId,
+        "messages",
+        messageId
+    );
 
+    await updateDoc(messageRef, {
+        deletedForEveryone: true,
+        deletedAt: Timestamp.now(),
+
+        // original content hide
+        text: "",
+        image: null,
+        document: null,
+        audio: null,
+        video: null,
+        location: null,
+        contact: null,
+
+        reaction: null,
+        reactions: {},
+    });
+};
 
 // EDIT MESSAGE
 
@@ -230,25 +275,31 @@ export const editMessage = async (
     messageId: string,
     text: string
 ) => {
-
-    await updateDoc(
-        doc(
+    try {
+        const messageRef = doc(
             db,
             "chats",
             chatId,
             MESSAGES_COLLECTION,
             messageId
-        ),
-        {
-            text,
+        );
 
+        await updateDoc(messageRef, {
+            text: text.trim(),
             edited: true,
+            editedAt: serverTimestamp(),
+        });
 
-            editedAt:
-                serverTimestamp(),
-        }
-    );
+        console.log("✏️ Firestore message edited");
 
+    } catch (error) {
+        console.log(
+            "❌ Edit message error:",
+            error
+        );
+
+        throw error;
+    }
 };
 
 export const markMessagesDelivered = async (
@@ -318,6 +369,7 @@ export const markMessagesSeen = async (
     }
 
 };
+
 export const markMessagesAsSeen = async (
     chatId: string,
     uid: string
@@ -354,4 +406,91 @@ export const markMessagesAsSeen = async (
             [`unreadCount.${uid}`]: 0,
         }
     );
+};
+
+// message.service.ts mein baaki functions ke saath add karo
+// (upar wahi imports use karo jo already file mein hain: db, doc, updateDoc, etc.)
+export const updateMessageReaction = async (
+    chatId: string,
+    messageId: string,
+    emoji: string | null, // null bhejo agar reaction hatana ho (toggle-off)
+    uid: string
+) => {
+    try {
+        if (!chatId || !messageId) return;
+
+        const messageRef = doc(
+            db,
+            "chats",
+            chatId,
+            "messages",
+            messageId
+        );
+
+        await updateDoc(messageRef, {
+            reaction: emoji,
+            reactedBy: emoji ? uid : null,
+        });
+
+        console.log("✅ Reaction updated:", emoji);
+    } catch (error) {
+        console.log("❌ Update Reaction Error:", error);
+    }
+};
+
+// TOGGLE MESSAGE STAR
+export const toggleMessageStar = async (
+    chatId: string,
+    messageId: string,
+    uid: string
+) => {
+    try {
+        const messageRef = doc(
+            db,
+            "chats",
+            chatId,
+            MESSAGES_COLLECTION,
+            messageId
+        );
+
+        const messageSnap = await getDoc(messageRef);
+
+        if (!messageSnap.exists()) {
+            console.log("Star Error: Message not found");
+            return;
+        }
+
+        const data = messageSnap.data();
+
+        const starredBy: string[] =
+            data.starredBy ?? [];
+
+        const alreadyStarred =
+            starredBy.includes(uid);
+
+        if (alreadyStarred) {
+            // ⭐ Remove star
+
+            await updateDoc(messageRef, {
+                starredBy: arrayRemove(uid),
+            });
+
+            console.log("⭐ Star removed");
+
+        } else {
+            // ⭐ Add star
+
+            await updateDoc(messageRef, {
+                starredBy: arrayUnion(uid),
+            });
+
+            console.log("⭐ Star added");
+        }
+
+    } catch (error) {
+        console.log(
+            "Toggle Message Star Error:",
+            error
+        );
+    }
 };

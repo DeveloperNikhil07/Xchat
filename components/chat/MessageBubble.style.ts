@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
     container: {
         width: "100%",
         marginVertical: 2,
-        paddingHorizontal: 8,
+        // paddingHorizontal: 8,
     },
 
     senderContainer: {
@@ -105,5 +105,21 @@ export const styles = StyleSheet.create({
 
     reactionText: {
         fontSize: 13,
+    },
+    deletedMessageContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingVertical: 3,
+    },
+
+    deletedMessageText: {
+        fontSize: 14,
+        fontStyle: "italic",
+        color: "#777",
+    },
+
+    deletedMessageTextSender: {
+        color: "rgba(255,255,255,0.7)",
     },
 });

@@ -1,3 +1,5 @@
+import { Timestamp } from "firebase/firestore";
+
 export interface ReplyMessage {
     sender: string;
     message: string;
@@ -29,7 +31,20 @@ export interface Message {
     reply?: ReplyMessage;
 
     isStarred: boolean;
+
+    deletedFor?: string[];
+
+    deletedForEveryone?: boolean;
+    isDeletedForMe?: boolean;
+
+    edited?: boolean;
+    editedAt?: string;  
+
     reaction?: string;
+
+    reactedBy?: string;
+
+    reactions?: Record<string, string[]>;
 
     image?: string | null;
 
@@ -56,7 +71,7 @@ export interface Message {
         longitude: number;
         address?: string;
         isLive?: boolean;
-        liveUntil?: number; // timestamp — jab tak live rahegi
+        liveUntil?: number;
     };
     contact?: {
         name: string;
@@ -82,7 +97,13 @@ export interface FirestoreMessage {
 
     type: MessageType;
 
-    createdAt: any;
+    createdAt: Timestamp;
+    starredBy?: string[];
+    deletedFor?: string[];
+    deletedForEveryone?: boolean;
+    deletedAt?: Timestamp;
+    edited?: boolean;
+    editedAt?: Timestamp;
 
     status?:
     | "sending"
@@ -92,8 +113,14 @@ export interface FirestoreMessage {
 
     deliveredTo?: string[];
     seenBy?: string[];
-    
+
     reply?: ReplyMessage;
+
+    // 👇 naya
+    reaction?: string;
+    reactedBy?: string;
+
+    reactions?: Record<string, string[]>;
 
     image?: string | null;
 

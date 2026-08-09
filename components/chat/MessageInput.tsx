@@ -1,10 +1,10 @@
 import Colors from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-    TextInput,
-    TouchableOpacity,
-    View,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 import { MessageInputProps } from "@/types/chat/MessageInputs/MessageInput";
@@ -23,13 +23,22 @@ export default function MessageInput({
 
   replyMessage,
   setReplyMessage,
-
+  editingMessage,
+  onCancelEdit,
   showEmoji,
   setShowEmoji,
+  onEdit
 }: MessageInputProps) {
   const [message, setMessage] = useState("");
 
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 👇 Edit button dabane ke baad old message input me aa jayega
+  useEffect(() => {
+    if (editingMessage) {
+      setMessage(editingMessage.message);
+      setReplyMessage(null);
+    }
+  }, [editingMessage]);
 
   const handleTyping = (text: string) => {
     console.log("handleTyping called with text:", text);
@@ -50,20 +59,59 @@ export default function MessageInput({
     }
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     const text = message.trim();
 
     if (!text) return;
 
-    onSend?.(text);
-
-    setMessage("");
-
-    // Message send hote hi typing stop
+    // Stop typing
     onStopTyping?.();
 
     if (typingTimeout.current) {
       clearTimeout(typingTimeout.current);
+      typingTimeout.current = null;
+    }
+
+    // ================================
+    // EDIT MODE
+    // ================================
+
+    if (editingMessage) {
+      await onEdit?.(
+        editingMessage.id,
+        text
+      );
+
+      setMessage("");
+
+      onCancelEdit?.();
+
+      return;
+    }
+
+    // ================================
+    // NORMAL SEND
+    // ================================
+
+    await onSend?.(text);
+
+    setMessage("");
+  };
+
+  // ================================
+  // CANCEL EDIT
+  // ================================
+
+  const handleCancelEdit = () => {
+    setMessage("");
+
+    onCancelEdit?.();
+
+    onStopTyping?.();
+
+    if (typingTimeout.current) {
+      clearTimeout(typingTimeout.current);
+      typingTimeout.current = null;
     }
   };
 

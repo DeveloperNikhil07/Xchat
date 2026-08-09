@@ -19,5 +19,6 @@ export interface Props {
     onForward?: () => void;
     onStar?: () => void;
     onDelete?: () => void;
+    onEdit?: () => void;
     onReaction?: (emoji: string) => void;
 }

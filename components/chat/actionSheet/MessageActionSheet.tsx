@@ -15,6 +15,7 @@ export default function MessageActionSheet({
     onStar,
     onDelete,
     onReaction,
+    onEdit,
 }: Props) {
     return (
         <Modal
@@ -22,13 +23,13 @@ export default function MessageActionSheet({
             transparent
             animationType="slide"
             statusBarTranslucent
+            onRequestClose={onClose}
         >
             <Pressable
                 style={styles.overlay}
                 onPress={onClose}
             >
                 <Pressable style={styles.container}>
-
                     <View style={styles.reactionContainer}>
                         <MessageReactionBar
                             onSelect={onReaction}
@@ -36,12 +37,20 @@ export default function MessageActionSheet({
                     </View>
 
                     <View style={styles.actions}>
-
                         <MessageActionItem
                             title="Reply"
                             icon="arrow-undo-outline"
                             onPress={() => {
                                 onReply?.();
+                                onClose();
+                            }}
+                        />
+
+                        <MessageActionItem
+                            title="Edit"
+                            icon="pencil"
+                            onPress={() => {
+                                onEdit?.();
                                 onClose();
                             }}
                         />
@@ -82,9 +91,7 @@ export default function MessageActionSheet({
                                 onClose();
                             }}
                         />
-
                     </View>
-
                 </Pressable>
             </Pressable>
         </Modal>

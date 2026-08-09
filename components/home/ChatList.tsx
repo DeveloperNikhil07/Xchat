@@ -49,16 +49,16 @@ export default function ChatList({ chats, refreshing = false, onRefresh }: ChatL
                         {...item}
                         onPress={() => {
 
-                            if (item.type === "request") {
+                            if (item?.type === "request") {
 
                                 // Friend Request Open
                                 router.push({
                                     pathname: "/(chat)/[chatId]",
                                     params: {
-                                        chatId: item.id,
-                                        requestId: item.requestId || item.id,
-                                        name: item.name,
-                                        avatar: item.image || "",
+                                        chatId: item?.id || "",
+                                        requestId: item?.requestId || item?.id,
+                                        name: item?.name,
+                                        avatar: item?.image || "",
                                         type: "request",
                                     },
                                 });
@@ -69,9 +69,9 @@ export default function ChatList({ chats, refreshing = false, onRefresh }: ChatL
                                 router.push({
                                     pathname: "/(chat)/[chatId]",
                                     params: {
-                                        chatId: item.id,
-                                        name: item.name,
-                                        avatar: item.image || "",
+                                        chatId: item?.id || "",
+                                        name: item?.name,
+                                        avatar: item?.image || "",
                                         type: "chat",
                                     },
                                 });

@@ -1,3 +1,5 @@
+import { Message } from "../message/message";
+
 export interface MessageInputProps {
     onSend?: (text: string) => void;
 
@@ -10,7 +12,11 @@ export interface MessageInputProps {
 
     replyMessage: any;
     setReplyMessage: (value: any) => void;
+    editingMessage?: Message | null;
 
+    onCancelEdit?: () => void;
+
+    onEdit?: (messageId: string, text: string) => void | Promise<void>;
     showEmoji: boolean;
     setShowEmoji: React.Dispatch<React.SetStateAction<boolean>>;
 }

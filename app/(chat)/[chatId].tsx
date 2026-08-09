@@ -1,3 +1,4 @@
+import DeleteMessageModal from "@/components/chat/actionSheet/DeleteMessageModal";
 import MessageActionSheet from "@/components/chat/actionSheet/MessageActionSheet";
 import AttachmentSheet from "@/components/chat/attachment/AttachmentSheet";
 import ChatHeader from "@/components/chat/ChatHeader";
@@ -17,11 +18,16 @@ import ScreenContainer from "@/components/layout/ScreenContainer";
 import { db } from "@/config/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import {
+    deleteMessageForEveryone,
+    deleteMessageForMe,
+    editMessage,
     listenMessages,
     markMessagesAsSeen,
     markMessagesDelivered,
     markMessagesSeen,
-    sendMessage
+    sendMessage,
+    toggleMessageStar,
+    updateMessageReaction
 } from "@/services/message.service";
 import {
     acceptChatRequest,
@@ -40,14 +46,23 @@ import * as ExpoLocation from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Keyboard, TouchableWithoutFeedback, View } from "react-native";
+import {
+    Alert,
+    FlatList,
+    Keyboard,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
+    Platform,
+    TouchableWithoutFeedback,
+    View,
+} from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 
 
 export default function ChatScreen() {
     const { currentUser } = useAuth();
     const router = useRouter();
-    const listRef = useRef<FlatList>(null);
+    const listRef = useRef<FlatList<Message>>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [inputHeight, setInputHeight] = useState(0);
     const [chatMessages, setChatMessages] = useState<Message[]>([]);
@@ -81,6 +96,11 @@ export default function ChatScreen() {
     const [actionLoading, setActionLoading] = useState(false);
     const [showEmoji, setShowEmoji] = useState(false);
     const [typingUser, setTypingUser] = useState("");
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+
+    // 👇 naya — keyboard ki actual height track karta hai
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
 
 
     const liveWatchRef = useRef<ExpoLocation.LocationSubscription | null>(null);
@@ -103,6 +123,7 @@ export default function ChatScreen() {
                     ? {
                         sender: replyMessage.sender,
                         message: replyMessage.message,
+                        messageId: replyMessage.messageId,
                     }
                     : null,
             });
@@ -117,30 +138,62 @@ export default function ChatScreen() {
         }
     };
 
-    const handleTyping = async () => {
-        console.log("Typing Started");
-        if (!chatId || !currentUser) return;
+    const handleEdit = async (
+        messageId: string,
+        text: string
+    ) => {
+        if (!chatId || !messageId) return;
+
+        const updatedText = text.trim();
+
+        if (!updatedText) return;
+
         try {
-            await startTyping(
+            await editMessage(
                 chatId,
-                currentUser.uid,
-                currentUser.displayName || "User"
+                messageId,
+                updatedText
             );
-            console.log("Firestore Updated");
+
+            console.log("✏️ Message edited successfully");
+
+            setEditingMessage(null);
+            setSelectedMessage(null);
 
         } catch (error) {
-            console.log("Typing Error:", error);
+            console.log(
+                "❌ Edit message failed:",
+                error
+            );
         }
     };
 
-    const handleStopTyping = async () => {
-        if (!chatId) return;
-
-        try {
-            await stopTyping(chatId);
-        } catch (error) {
-            console.log("Stop Typing Error:", error);
+    const handleTyping = async () => {
+        if (type !== "chat") {
+            return;
         }
+
+        if (!chatId || !currentUser) {
+            return;
+        }
+
+        await startTyping(
+            chatId,
+            currentUser.uid,
+            currentUser.displayName || ""
+        );
+    };
+
+    const handleStopTyping = async () => {
+        if (type !== "chat") {
+            return;
+        }
+
+        if (!chatId) {
+            return;
+        }
+
+        await stopTyping(chatId);
     };
 
     const markChatRead = async () => {
@@ -161,53 +214,57 @@ export default function ChatScreen() {
         }
     };
 
-    const handleDeleteMessage = (id: string) => {
-        setChatMessages(prev =>
-            prev.filter(item => item.id !== id)
-        );
-
-        setShowActionSheet(false);
-    };
-
-    const handleToggleStar = (id: string) => {
-        setChatMessages(prev =>
-            prev.map(item =>
-                item.id === id
-                    ? {
-                        ...item,
-                        isStarred: !item.isStarred,
-                    }
-                    : item
-            )
-        );
-
-        setShowActionSheet(false);
-    };
-
-    const handleReaction = (id: string, emoji: string) => {
-        setChatMessages(prev =>
-            prev.map(item =>
-                item.id === id
-                    ? {
-                        ...item,
-                        reaction: emoji,
-                    }
-                    : item
-            )
-        );
-
-        setShowActionSheet(false);
-    };
-
-    const handleScroll = (event: any) => {
-        const offsetY = event.nativeEvent.contentOffset.y;
-
-        // user thoda upar gaya
-        if (offsetY > 250) {
-            setShowScrollButton(true);
-        } else {
-            setShowScrollButton(false);
+    const handleToggleStar = async (messageId: string) => {
+        if (!currentUser) {
+            return;
         }
+
+        if (!chatId) {
+            return;
+        }
+
+        await toggleMessageStar(
+            chatId,
+            messageId,
+            currentUser.uid
+        );
+
+        setShowActionSheet(false);
+    };
+
+    const handleReaction = async (id: string, emoji: string) => {
+        if (!chatId || !currentUser) return;
+
+        const existing = chatMessages.find((m) => m.id === id);
+        const isSameReaction = existing?.reaction === emoji;
+        const newEmoji = isSameReaction ? null : emoji;
+
+        setChatMessages(prev =>
+            prev.map(item =>
+                item.id === id
+                    ? { ...item, reaction: newEmoji ?? undefined }
+                    : item
+            )
+        );
+
+        setShowActionSheet(false);
+
+        try {
+            await updateMessageReaction(chatId, id, newEmoji, currentUser.uid);
+        } catch (error) {
+            console.log("Reaction sync failed:", error);
+        }
+    };
+
+    // 👇 FIX: pehle "offsetY > 250" tha, jo "top se kitna neeche" measure
+    // karta tha — ye ulta tha. Ab "bottom se kitni door hai" calculate
+    // karte hain, jo WhatsApp jaise arrow-button ke liye sahi logic hai.
+    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+        const distanceFromBottom =
+            contentSize.height - contentOffset.y - layoutMeasurement.height;
+
+        setShowScrollButton(distanceFromBottom > 250);
     };
 
     const scrollToBottom = () => {
@@ -399,7 +456,6 @@ export default function ChatScreen() {
         loc: { latitude: number; longitude: number },
         durationMs: number
     ) => {
-        // Abhi ek waqt me ek hi active live share (simplicity ke liye)
         stopLiveLocation();
 
         const id = Date.now().toString();
@@ -575,6 +631,25 @@ export default function ChatScreen() {
         }
     }, [openSearch]);
 
+    // 👇 naya — keyboard show/hide hone par uski real height track karo
+    useEffect(() => {
+        const showEvent = Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvent = Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const showSub = Keyboard.addListener(showEvent, (e) => {
+            setKeyboardHeight(e.endCoordinates.height);
+        });
+
+        const hideSub = Keyboard.addListener(hideEvent, () => {
+            setKeyboardHeight(0);
+        });
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, []);
+
     useEffect(() => {
         if (!chatId || !currentUser || type === "request") {
             return;
@@ -589,11 +664,24 @@ export default function ChatScreen() {
                     type: msg.type || "text",
                     image: msg.image || null,
                     time: msg.createdAt?.toDate()?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", }) || "",
-                    date: "Today",
+                    date: msg.createdAt?.toDate()?.toISOString() || "",
                     isSender: msg.senderId === currentUser.uid,
                     status: msg.status,
-                    isStarred: false,
-                    reply: msg.reply || undefined,
+                    isStarred: msg.isStarred ?? false,
+                    deletedFor: msg.deletedFor ?? [],
+                    deletedForEveryone: msg.deletedForEveryone ?? false,
+                    isDeletedForMe: (msg.deletedFor ?? []).includes(currentUser.uid),
+                    edited: msg.edited ?? false,
+                    editedAt: msg.editedAt?.toDate()?.toISOString(),
+                    reaction: msg.reaction || undefined,
+                    reply:
+                        msg.reply && msg.reply.messageId
+                            ? {
+                                sender: msg.reply.sender,
+                                message: msg.reply.message,
+                                messageId: msg.reply.messageId,
+                            }
+                            : undefined,
                 }));
                 setChatMessages(formatted);
             }
@@ -608,11 +696,11 @@ export default function ChatScreen() {
     ]);
 
     useEffect(() => {
-        if (!chatId || !currentUser?.uid) return;
+        if (!chatId || !currentUser?.uid || type === "request") return;
 
         markMessagesAsSeen(chatId, currentUser.uid);
 
-    }, [chatId, currentUser?.uid]);
+    }, [chatId, currentUser?.uid, type]);
 
     useEffect(() => {
         if (!chatId || !currentUser)
@@ -626,47 +714,39 @@ export default function ChatScreen() {
     }, [chatId, currentUser, type]);
 
     useEffect(() => {
-        if (!chatId || !currentUser?.uid) return;
+        if (!chatId || !currentUser?.uid || type === "request") return;
 
         markMessagesDelivered(chatId, currentUser.uid);
         markMessagesSeen(chatId, currentUser.uid);
     }, [
         chatId,
         currentUser,
+        type,
         markMessagesDelivered,
         markMessagesSeen,
     ]);
 
     useEffect(() => {
-        if (!chatId || !currentUser) return;
+        if (!chatId || type !== "chat") {
+            return;
+        }
 
         const unsubscribe = listenTyping(chatId, (typing) => {
-
-            console.log("Received Typing:", typing);
-
-            if (!typing) {
-                setTypingUser("");
-                return;
-            }
-
-            if (
-                typing.isTyping &&
-                typing.uid !== currentUser.uid
-            ) {
-                console.log("SHOW:", typing.name);
-                setTypingUser(typing.name);
+            if (typing?.isTyping && typing.uid !== currentUser?.uid) {
+                setTypingUser(typing.name || "");
             } else {
-                console.log("HIDE");
                 setTypingUser("");
             }
         });
 
         return unsubscribe;
+    }, [chatId, type, currentUser?.uid]);
 
-    }, [chatId, currentUser]);
-    console.log("Current Typing User:", typingUser);
-    console.log("Chat ID:", chatId);
-    console.log("User Name:", name);
+    useEffect(() => {
+        console.log("Current Typing User:", typingUser);
+        console.log("Chat ID:", chatId);
+        console.log("User Name:", name);
+    }, [typingUser, chatId, name]);
 
 
     return (
@@ -720,6 +800,8 @@ export default function ChatScreen() {
                             ref={listRef}
                             messages={filteredMessages}
                             bottomInset={inputHeight}
+                            keyboardHeight={keyboardHeight}
+                            chatId={chatId}
                             onScroll={handleScroll}
                             onLongPressMessage={(message) => {
                                 setSelectedMessage(message);
@@ -745,8 +827,19 @@ export default function ChatScreen() {
                                 setSelectedContactMessage(message);
                                 setShowContactViewer(true);
                             }}
+                            onReplyMessage={(message) => {
+                                setReplyMessage({
+                                    sender: message.isSender
+                                        ? "You"
+                                        : (name as string),
 
-                        />)}
+                                    message: message.message,
+
+                                    messageId: message.id,
+                                });
+                            }}
+                        />
+                        )}
                     {typingUser && (
                         <View
                             style={{
@@ -762,22 +855,27 @@ export default function ChatScreen() {
                                 visible={showScrollButton}
                                 onPress={scrollToBottom}
                             />
-                            <MessageInput
-                                replyMessage={replyMessage}
-                                setReplyMessage={setReplyMessage}
-                                onSend={handleSend}
+                            {type === "chat" && (
+                                <MessageInput
+                                    replyMessage={replyMessage}
+                                    setReplyMessage={setReplyMessage}
+                                    onSend={handleSend}
 
-                                onTyping={handleTyping}
-                                onStopTyping={handleStopTyping}
+                                    onTyping={handleTyping}
+                                    onStopTyping={handleStopTyping}
 
-                                onEmojiPress={() => { }}
-                                onAttachmentPress={() => setShowAttachment(true)}
-                                onCameraPress={openCamera}
-                                onVoicePress={() => { }}
+                                    onEmojiPress={() => { }}
+                                    onAttachmentPress={() => setShowAttachment(true)}
+                                    onCameraPress={openCamera}
+                                    onVoicePress={() => { }}
 
-                                showEmoji={showEmoji}
-                                setShowEmoji={setShowEmoji}
-                            />
+                                    showEmoji={showEmoji}
+                                    setShowEmoji={setShowEmoji}
+                                    editingMessage={editingMessage}
+                                    onCancelEdit={() => setEditingMessage(null)}
+                                    onEdit={handleEdit}
+                                />
+                            )}
                         </KeyboardStickyView>
                     )}
 
@@ -835,13 +933,72 @@ export default function ChatScreen() {
                         onDelete={() => {
                             if (!selectedMessage) return;
 
-                            handleDeleteMessage(selectedMessage.id);
+                            setShowActionSheet(false);
+                            setShowDeleteModal(true);
+                        }}
+
+                        onEdit={() => {
+                            if (!selectedMessage) return;
+
+                            setEditingMessage(selectedMessage);
+                            setShowActionSheet(false);
                         }}
 
                         onReaction={(emoji) => {
                             if (!selectedMessage) return;
 
                             handleReaction(selectedMessage.id, emoji);
+                        }}
+                    />
+
+                    <DeleteMessageModal
+                        visible={showDeleteModal}
+                        isSender={selectedMessage?.isSender ?? false}
+                        onClose={() => {
+                            setShowDeleteModal(false);
+                        }}
+                        onDeleteForMe={async () => {
+                            if (!selectedMessage || !chatId || !currentUser) {
+                                return;
+                            }
+
+                            try {
+                                await deleteMessageForMe(
+                                    chatId,
+                                    selectedMessage.id,
+                                    currentUser.uid
+                                );
+
+                                setShowDeleteModal(false);
+                                setSelectedMessage(null);
+
+                            } catch (error) {
+                                console.log(
+                                    "Delete for me failed:",
+                                    error
+                                );
+                            }
+                        }}
+                        onDeleteForEveryone={async () => {
+                            if (!selectedMessage || !chatId) {
+                                return;
+                            }
+
+                            try {
+                                await deleteMessageForEveryone(
+                                    chatId,
+                                    selectedMessage.id
+                                );
+
+                                setShowDeleteModal(false);
+                                setSelectedMessage(null);
+
+                            } catch (error) {
+                                console.log(
+                                    "Delete for everyone failed:",
+                                    error
+                                );
+                            }
                         }}
                     />
                     <ImageViewer

@@ -37,6 +37,20 @@ const styles = StyleSheet.create({
     emoji: {
         fontSize: 24,
     },
+    // existing styles ke saath ye add karo:
+
+    plusButton: {
+        backgroundColor: "rgba(255,255,255,0.06)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.15)",
+    },
+
+    hiddenInput: {
+        position: "absolute",
+        height: 1,
+        width: 1,
+        opacity: 0,
+    },
 });
 
 export default styles;
