@@ -10,7 +10,7 @@ const REACTION_BORDER = "#0B141A";
 export const styles = StyleSheet.create({
     container: {
         width: "100%",
-        marginVertical: 2,
+        marginVertical: 10,
         // paddingHorizontal: 8,
     },
 

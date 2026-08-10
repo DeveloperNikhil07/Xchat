@@ -17,12 +17,12 @@ import TypingIndicator from "@/components/common/TypingIndicator";
 import ScreenContainer from "@/components/layout/ScreenContainer";
 import { db } from "@/config/firebase";
 import { useAuth } from "@/hooks/useAuth";
+import { uploadToCloudinary } from "@/services/cloudinary";
 import {
     deleteMessageForEveryone,
     deleteMessageForMe,
     editMessage,
     listenMessages,
-    markMessagesAsSeen,
     markMessagesDelivered,
     markMessagesSeen,
     sendMessage,
@@ -39,22 +39,24 @@ import {
     stopTyping,
 } from "@/services/typing.service";
 import { Message, ReplyMessage } from "@/types/chat/message/message";
+import { safeToDate } from "@/utils/firestoreDate";
 import * as Clipboard from "expo-clipboard";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as ExpoLocation from "expo-location";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { doc, updateDoc } from "firebase/firestore";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
+    AppState,
     FlatList,
     Keyboard,
     NativeScrollEvent,
     NativeSyntheticEvent,
     Platform,
     TouchableWithoutFeedback,
-    View,
+    View
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 
@@ -63,6 +65,7 @@ export default function ChatScreen() {
     const { currentUser } = useAuth();
     const router = useRouter();
     const listRef = useRef<FlatList<Message>>(null);
+    const isChatActiveRef = useRef(false);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [inputHeight, setInputHeight] = useState(0);
     const [chatMessages, setChatMessages] = useState<Message[]>([]);
@@ -98,6 +101,7 @@ export default function ChatScreen() {
     const [typingUser, setTypingUser] = useState("");
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+    const [uploadingMessages, setUploadingMessages] = useState<Message[]>([]);
 
     // 👇 naya — keyboard ki actual height track karta hai
     const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -136,6 +140,78 @@ export default function ChatScreen() {
                 error
             );
         }
+    };
+    const createUploadingMessage = (
+        type: Message["type"],
+        asset: {
+            uri: string;
+            fileName?: string;
+            fileSize?: number;
+            mimeType?: string;
+            duration?: number;
+        }
+    ): Message => {
+
+        const tempId = `uploading-${Date.now()}-${Math.random()}`;
+
+        const message: Message = {
+            id: tempId,
+
+            message: "",
+
+            type,
+
+            image:
+                type === "image"
+                    ? asset.uri
+                    : null,
+
+            video:
+                type === "video"
+                    ? {
+                        uri: asset.uri,
+                        size: asset.fileSize,
+                        duration: asset.duration,
+                    }
+                    : undefined,
+
+            document:
+                type === "document"
+                    ? {
+                        name: asset.fileName || "Document",
+                        uri: asset.uri,
+                        size: asset.fileSize,
+                        mimeType: asset.mimeType,
+                    }
+                    : undefined,
+
+            time: new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+            }),
+
+            date: new Date().toISOString(),
+
+            isSender: true,
+
+            status: "sending",
+
+            isStarred: false,
+        };
+
+        setUploadingMessages((prev) => [
+            ...prev,
+            message,
+        ]);
+
+        return message;
+    };
+    const removeUploadingMessage = (messageId: string) => {
+        setUploadingMessages((prev) =>
+            prev.filter(
+                (message) => message.id !== messageId
+            )
+        );
     };
 
     const handleEdit = async (
@@ -274,142 +350,424 @@ export default function ChatScreen() {
     };
 
     const openCamera = async () => {
-        const permission =
-            await ImagePicker.requestCameraPermissionsAsync();
+        if (!chatId || !currentUser) return;
 
-        if (!permission.granted) {
-            alert("Camera permission denied");
-            return;
+        let uploadingMessageId: string | null = null;
+
+        try {
+
+            const permission =
+                await ImagePicker.requestCameraPermissionsAsync();
+
+            if (!permission.granted) {
+                Alert.alert(
+                    "Permission Required",
+                    "Camera permission is required."
+                );
+                return;
+            }
+
+            const result =
+                await ImagePicker.launchCameraAsync({
+                    mediaTypes: ["images"],
+                    quality: 0.8,
+                });
+
+            if (result.canceled) return;
+
+            const asset = result.assets[0];
+
+            setShowAttachment(false);
+
+            // 🔥 IMMEDIATELY SHOW IMAGE BUBBLE
+            const tempMessage =
+                createUploadingMessage(
+                    "image",
+                    {
+                        uri: asset.uri,
+                        fileSize: asset.fileSize,
+                        mimeType: asset.mimeType,
+                    }
+                );
+
+            uploadingMessageId = tempMessage.id;
+
+            console.log("📤 Uploading camera image...");
+
+            const uploaded =
+                await uploadToCloudinary(
+                    asset.uri,
+                    "image"
+                );
+
+            console.log(
+                "☁️ Uploaded:",
+                uploaded.secure_url
+            );
+
+            await sendMessage(chatId, {
+                senderId: currentUser.uid,
+
+                type: "image",
+
+                image: uploaded.secure_url,
+
+                text: "",
+
+                reply: replyMessage
+                    ? {
+                        sender: replyMessage.sender,
+                        message: replyMessage.message,
+                        messageId: replyMessage.messageId,
+                    }
+                    : null,
+            });
+
+            // 🔥 Remove temporary loader bubble
+            if (uploadingMessageId) {
+                removeUploadingMessage(
+                    uploadingMessageId
+                );
+            }
+
+            setReplyMessage(null);
+
+        } catch (error) {
+
+            console.log(
+                "❌ Camera upload error:",
+                error
+            );
+
+            if (uploadingMessageId) {
+                removeUploadingMessage(
+                    uploadingMessageId
+                );
+            }
+
+            Alert.alert(
+                "Upload Failed",
+                "Unable to send image."
+            );
         }
-
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ["images"],
-            quality: 0.8,
-        });
-
-        if (result.canceled) return;
-
-        const image = result.assets[0].uri;
-
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            type: "image",
-            message: "",
-            image,
-            time: "Now",
-            isSender: true,
-            status: "sent",
-            date: "Today",
-            isStarred: false,
-        };
-
-        setChatMessages(prev => [...prev, newMessage]);
-
-        setShowAttachment(false);
     };
 
     const openGallery = async () => {
-        const permission =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!chatId || !currentUser) return;
 
-        if (!permission.granted) {
-            alert("Gallery permission denied");
-            return;
+        let uploadingMessageId: string | null = null;
+
+        try {
+
+            const permission =
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+            if (!permission.granted) {
+                Alert.alert(
+                    "Permission Required",
+                    "Gallery permission is required."
+                );
+                return;
+            }
+
+            const result =
+                await ImagePicker.launchImageLibraryAsync({
+                    mediaTypes: ["images", "videos"],
+                    quality: 0.8,
+                    allowsMultipleSelection: false,
+                });
+
+            if (result.canceled) return;
+
+            const asset = result.assets[0];
+
+            setShowAttachment(false);
+
+            const isVideo =
+                asset.type === "video";
+
+            // 🔥 IMMEDIATELY SHOW TEMP BUBBLE
+            const tempMessage =
+                createUploadingMessage(
+                    isVideo ? "video" : "image",
+                    {
+                        uri: asset.uri,
+                        fileSize: asset.fileSize,
+                        mimeType: asset.mimeType,
+                        duration: asset.duration ?? undefined,
+                    }
+                );
+            uploadingMessageId = tempMessage.id;
+
+            console.log(
+                isVideo
+                    ? "📤 Uploading video..."
+                    : "📤 Uploading image..."
+            );
+
+            const uploaded =
+                await uploadToCloudinary(
+                    asset.uri,
+                    isVideo
+                        ? "video"
+                        : "image"
+                );
+
+            console.log(
+                "☁️ Cloudinary URL:",
+                uploaded.secure_url
+            );
+
+            await sendMessage(chatId, {
+
+                senderId:
+                    currentUser.uid,
+
+                type:
+                    isVideo
+                        ? "video"
+                        : "image",
+
+                text: "",
+
+                image:
+                    isVideo
+                        ? null
+                        : uploaded.secure_url,
+
+                video:
+                    isVideo
+                        ? {
+                            uri:
+                                uploaded.secure_url,
+
+                            size:
+                                asset.fileSize,
+
+                            duration:
+                                asset.duration ??
+                                undefined,
+                        }
+                        : undefined,
+
+                reply:
+                    replyMessage
+                        ? {
+                            sender:
+                                replyMessage.sender,
+
+                            message:
+                                replyMessage.message,
+
+                            messageId:
+                                replyMessage.messageId,
+                        }
+                        : null,
+            });
+
+            // 🔥 Remove temporary loader
+            if (uploadingMessageId) {
+                removeUploadingMessage(
+                    uploadingMessageId
+                );
+            }
+
+            setReplyMessage(null);
+
+        } catch (error) {
+
+            console.log(
+                "❌ Gallery upload error:",
+                error
+            );
+
+            if (uploadingMessageId) {
+                removeUploadingMessage(
+                    uploadingMessageId
+                );
+            }
+
+            Alert.alert(
+                "Upload Failed",
+                "Unable to send media."
+            );
         }
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ["images", "videos"],
-            quality: 0.8,
-            allowsMultipleSelection: false,
-        });
-
-        if (result.canceled) return;
-
-        const asset = result.assets[0];
-        const isVideo = asset.type === "video";
-
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            type: isVideo ? "video" : "image",
-            message: "",
-            image: isVideo ? null : asset.uri,
-            video: isVideo
-                ? { uri: asset.uri, size: asset.fileSize, duration: asset.duration ?? undefined }
-                : undefined,
-            time: "Now",
-            isSender: true,
-            status: "sent",
-            date: "Today",
-            isStarred: false,
-        };
-
-        setChatMessages(prev => [...prev, newMessage]);
-        setShowAttachment(false);
     };
 
     const pickDocument = async () => {
-        const result = await DocumentPicker.getDocumentAsync({
-            multiple: false,
-            copyToCacheDirectory: true,
-        });
+        if (!chatId || !currentUser) return;
 
-        if (result.canceled) return;
+        let uploadingMessageId: string | null = null;
 
-        const file = result.assets[0];
+        try {
 
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            type: "document",
-            message: "",
-            image: null,
-            document: {
-                name: file.name,
-                uri: file.uri,
-                size: file.size,
-                mimeType: file.mimeType,
-            },
-            time: "Now",
-            isSender: true,
-            status: "sent",
-            date: "Today",
-            isStarred: false,
-        };
+            const result =
+                await DocumentPicker.getDocumentAsync({
+                    multiple: false,
+                    copyToCacheDirectory: true,
+                });
 
-        setChatMessages(prev => [...prev, newMessage]);
+            if (result.canceled) return;
 
-        setShowAttachment(false);
+            const file = result.assets[0];
+
+            setShowAttachment(false);
+
+            // 🔥 SHOW DOCUMENT BUBBLE IMMEDIATELY
+            const tempMessage =
+                createUploadingMessage(
+                    "document",
+                    {
+                        uri: file.uri,
+                        fileName: file.name,
+                        fileSize: file.size,
+                        mimeType: file.mimeType,
+                    }
+                );
+
+            uploadingMessageId = tempMessage.id;
+
+            console.log(
+                "📤 Uploading document..."
+            );
+
+            const uploaded =
+                await uploadToCloudinary(
+                    file.uri,
+                    "raw"
+                );
+
+            console.log(
+                "☁️ Document URL:",
+                uploaded.secure_url
+            );
+
+            await sendMessage(chatId, {
+
+                senderId:
+                    currentUser.uid,
+
+                type: "document",
+
+                text: "",
+
+                document: {
+                    name: file.name,
+
+                    uri:
+                        uploaded.secure_url,
+
+                    size:
+                        file.size,
+
+                    mimeType:
+                        file.mimeType,
+                },
+
+                reply:
+                    replyMessage
+                        ? {
+                            sender:
+                                replyMessage.sender,
+
+                            message:
+                                replyMessage.message,
+
+                            messageId:
+                                replyMessage.messageId,
+                        }
+                        : null,
+            });
+
+            // 🔥 REMOVE TEMP LOADING BUBBLE
+            if (uploadingMessageId) {
+                removeUploadingMessage(
+                    uploadingMessageId
+                );
+            }
+
+            setReplyMessage(null);
+
+        } catch (error) {
+
+            console.log(
+                "❌ Document upload error:",
+                error
+            );
+
+            if (uploadingMessageId) {
+                removeUploadingMessage(
+                    uploadingMessageId
+                );
+            }
+
+            Alert.alert(
+                "Upload Failed",
+                "Unable to send document."
+            );
+        }
     };
-
     const pickAudio = async () => {
-        const result = await DocumentPicker.getDocumentAsync({
-            type: "audio/*",
-            copyToCacheDirectory: true,
-        });
+        if (!chatId || !currentUser) return;
 
-        if (result.canceled) return;
+        try {
+            const result =
+                await DocumentPicker.getDocumentAsync({
+                    type: "audio/*",
+                    copyToCacheDirectory: true,
+                });
 
-        const file = result.assets[0];
+            if (result.canceled) return;
 
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            message: "",
-            type: 'audio',
-            audio: {
-                uri: file.uri,
-                name: file.name,
-                size: file.size,
-            },
+            const file = result.assets[0];
 
-            time: "Now",
-            isSender: true,
-            status: "sent",
-            date: "Today",
-            isStarred: false,
-        };
+            setShowAttachment(false);
 
-        setChatMessages(prev => [...prev, newMessage]);
+            console.log("📤 Uploading audio...");
 
-        setShowAttachment(false);
+            const uploaded = await uploadToCloudinary(
+                file.uri,
+                "raw"
+            );
+
+            console.log(
+                "☁️ Audio URL:",
+                uploaded.secure_url
+            );
+
+            await sendMessage(chatId, {
+                senderId: currentUser.uid,
+                type: "audio",
+                text: "",
+
+                audio: {
+                    uri: uploaded.secure_url,
+                    name: file.name,
+                    size: file.size,
+                },
+
+                reply: replyMessage
+                    ? {
+                        sender: replyMessage.sender,
+                        message: replyMessage.message,
+                        messageId: replyMessage.messageId,
+                    }
+                    : null,
+            });
+
+            setReplyMessage(null);
+
+        } catch (error) {
+            console.log(
+                "❌ Audio upload error:",
+                error
+            );
+
+            Alert.alert(
+                "Upload Failed",
+                "Unable to send audio."
+            );
+        }
     };
 
     const stopLiveLocation = () => {
@@ -434,76 +792,71 @@ export default function ChatScreen() {
         liveMessageIdRef.current = null;
     };
 
-    const handleSendCurrentLocation = (loc: { latitude: number; longitude: number }) => {
-        const newMessage: Message = {
-            id: Date.now().toString(),
-            type: "location",
-            message: "",
-            image: null,
-            location: { latitude: loc.latitude, longitude: loc.longitude },
-            time: "Now",
-            isSender: true,
-            status: "sent",
-            date: "Today",
-            isStarred: false,
-        };
+    const handleSendCurrentLocation = async (loc: { latitude: number; longitude: number }) => {
+        if (!chatId || !currentUser) return;
 
-        setChatMessages((prev) => [...prev, newMessage]);
         setShowLocationSheet(false);
+
+        try {
+            await sendMessage(chatId, {
+                senderId: currentUser.uid,
+                type: "location",
+                text: "",
+                location: {
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                },
+                reply: replyMessage
+                    ? {
+                        sender: replyMessage.sender,
+                        message: replyMessage.message,
+                        messageId: replyMessage.messageId,
+                    }
+                    : null,
+            });
+
+            setReplyMessage(null);
+        } catch (error) {
+            console.log("❌ Send location error:", error);
+            Alert.alert("Failed", "Unable to send location.");
+        }
     };
 
     const handleShareLiveLocation = async (
         loc: { latitude: number; longitude: number },
         durationMs: number
     ) => {
-        stopLiveLocation();
+        if (!chatId || !currentUser) return;
 
-        const id = Date.now().toString();
+        stopLiveLocation();
+        setShowLocationSheet(false);
+
         const liveUntil = Date.now() + durationMs;
 
-        const newMessage: Message = {
-            id,
-            type: "location",
-            message: "",
-            image: null,
-            location: {
-                latitude: loc.latitude,
-                longitude: loc.longitude,
-                isLive: true,
-                liveUntil,
-            },
-            time: "Now",
-            isSender: true,
-            status: "sent",
-            date: "Today",
-            isStarred: false,
-        };
+        try {
+            // Firestore mein message create karo aur uski ID le lo
+            const messageRef = await sendMessage(chatId, {
+                senderId: currentUser.uid,
+                type: "location",
+                text: "",
+                location: {
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                },
+                reply: replyMessage
+                    ? {
+                        sender: replyMessage.sender,
+                        message: replyMessage.message,
+                        messageId: replyMessage.messageId,
+                    }
+                    : null,
+            });
 
-        setChatMessages((prev) => [...prev, newMessage]);
-        setShowLocationSheet(false);
-        liveMessageIdRef.current = id;
-
-        liveWatchRef.current = await ExpoLocation.watchPositionAsync(
-            { accuracy: ExpoLocation.Accuracy.Balanced, timeInterval: 5000, distanceInterval: 10 },
-            (update) => {
-                setChatMessages((prev) =>
-                    prev.map((m) =>
-                        m.id === id && m.location
-                            ? {
-                                ...m,
-                                location: {
-                                    ...m.location,
-                                    latitude: update.coords.latitude,
-                                    longitude: update.coords.longitude,
-                                },
-                            }
-                            : m
-                    )
-                );
-            }
-        );
-
-        liveTimeoutRef.current = setTimeout(stopLiveLocation, durationMs);
+            setReplyMessage(null);
+        } catch (error) {
+            console.log("❌ Live location send error:", error);
+            Alert.alert("Failed", "Unable to share live location.");
+        }
     };
 
     const handlePickContact = (contact: PickedContact) => {
@@ -605,18 +958,35 @@ export default function ChatScreen() {
         }
     };
 
+    const allMessages = useMemo(() => {
+        return [
+            ...chatMessages,
+            ...uploadingMessages,
+        ].sort((a, b) => {
+            const aTime = a.date
+                ? new Date(a.date).getTime()
+                : 0;
+
+            const bTime = b.date
+                ? new Date(b.date).getTime()
+                : 0;
+
+            return aTime - bTime;
+        });
+    }, [chatMessages, uploadingMessages]);
     const filteredMessages = useMemo(() => {
+
         if (!searchText.trim()) {
-            return chatMessages;
+            return allMessages;
         }
 
         const query = searchText.toLowerCase();
 
-        return chatMessages.filter((item) =>
+        return allMessages.filter((item) =>
             item.message?.toLowerCase().includes(query)
         );
 
-    }, [chatMessages, searchText]);
+    }, [allMessages, searchText]);
 
     useEffect(() => {
         return () => {
@@ -657,16 +1027,30 @@ export default function ChatScreen() {
 
         const unsubscribe = listenMessages(
             chatId,
-            (data) => {
+            async (data) => {
                 const formatted: Message[] = data.map((msg) => ({
                     id: msg.id,
                     message: msg.text || "",
                     type: msg.type || "text",
                     image: msg.image || null,
-                    time: msg.createdAt?.toDate()?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", }) || "",
-                    date: msg.createdAt?.toDate()?.toISOString() || "",
+                    audio: msg.audio
+                        ? {
+                            uri: msg.audio.uri,
+                            name: msg.audio.name,
+                            size: msg.audio.size ?? 0,
+                            duration: msg.audio.duration,
+                        }
+                        : undefined,
+
+                    document: msg.document,
+                    video: msg.video,
+                    location: msg.location,
+                    contact: msg.contact,
+                    time: safeToDate(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                    date: safeToDate(msg.createdAt).toISOString(),
                     isSender: msg.senderId === currentUser.uid,
                     status: msg.status,
+                    seenBy: msg.seenBy ?? [],
                     isStarred: msg.isStarred ?? false,
                     deletedFor: msg.deletedFor ?? [],
                     deletedForEveryone: msg.deletedForEveryone ?? false,
@@ -694,14 +1078,67 @@ export default function ChatScreen() {
         type,
         currentUser,
     ]);
+    useFocusEffect(
+        useCallback(() => {
+            if (!chatId || !currentUser?.uid || type !== "chat") {
+                return;
+            }
 
-    useEffect(() => {
-        if (!chatId || !currentUser?.uid || type === "request") return;
+            isChatActiveRef.current =
+                AppState.currentState === "active";
 
-        markMessagesAsSeen(chatId, currentUser.uid);
+            const markRead = async () => {
+                if (!isChatActiveRef.current) return;
 
-    }, [chatId, currentUser?.uid, type]);
+                try {
+                    await markMessagesDelivered(
+                        chatId,
+                        currentUser.uid
+                    );
 
+                    await markMessagesSeen(
+                        chatId,
+                        currentUser.uid
+                    );
+
+                    await markChatRead();
+
+                    console.log(
+                        "✅ Chat open + active → messages seen"
+                    );
+                } catch (error) {
+                    console.log(
+                        "❌ Mark read error:",
+                        error
+                    );
+                }
+            };
+
+            markRead();
+
+            const subscription =
+                AppState.addEventListener(
+                    "change",
+                    (state) => {
+                        isChatActiveRef.current =
+                            state === "active";
+
+                        if (state === "active") {
+                            markRead();
+                        }
+                    }
+                );
+
+            return () => {
+                isChatActiveRef.current = false;
+                subscription.remove();
+            };
+        }, [
+            chatId,
+            currentUser?.uid,
+            type,
+        ])
+    );
     useEffect(() => {
         if (!chatId || !currentUser)
             return;
@@ -712,19 +1149,6 @@ export default function ChatScreen() {
         markChatRead();
 
     }, [chatId, currentUser, type]);
-
-    useEffect(() => {
-        if (!chatId || !currentUser?.uid || type === "request") return;
-
-        markMessagesDelivered(chatId, currentUser.uid);
-        markMessagesSeen(chatId, currentUser.uid);
-    }, [
-        chatId,
-        currentUser,
-        type,
-        markMessagesDelivered,
-        markMessagesSeen,
-    ]);
 
     useEffect(() => {
         if (!chatId || type !== "chat") {
@@ -839,7 +1263,7 @@ export default function ChatScreen() {
                                 });
                             }}
                         />
-                        )}
+                    )}
                     {typingUser && (
                         <View
                             style={{

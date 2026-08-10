@@ -1,19 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
+import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Linking,
+    Alert,
     Modal,
     Pressable,
     Text,
-    View,
+    View
 } from "react-native";
-import { WebView } from "react-native-webview";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { formatSize } from "@/hooks/fileFormatSize";
 import { getFileInfo } from "@/hooks/getDocumentIcon";
-import { SafeAreaView } from "react-native-safe-area-context";
 import styles from "./DocumentViewer.style";
 
 interface DocumentData {
@@ -29,55 +29,222 @@ interface Props {
     onClose: () => void;
 }
 
-// Sirf PDF hi kabhi inline preview hoti hai, baaki sab hamesha "open with"
-function isPdf(doc: DocumentData) {
-    return (
-        doc.mimeType?.includes("pdf") ||
-        doc.name.toLowerCase().endsWith(".pdf")
-    );
-}
-
-// Local file:// URI pe WebView PDF preview bharosemand nahi hai
-// (khaaskar Android pe). Ye tabhi reliable hoga jab file https url ho
-// (cloud/Firebase Storage aane ke baad). Isliye preview sirf http(s)
-// URLs ke liye try karo, local files ke liye seedha fallback card.
-function isPreviewable(doc: DocumentData) {
-    const isRemote = doc.uri.startsWith("http://") || doc.uri.startsWith("https://");
-    return isPdf(doc) && isRemote;
-}
-
-export default function DocumentViewer({ visible, document, onClose }: Props) {
-    const [loading, setLoading] = useState(true);
-    const [failed, setFailed] = useState(false);
+export default function DocumentViewer({
+    visible,
+    document,
+    onClose,
+}: Props) {
+    const [opening, setOpening] = useState(false);
 
     useEffect(() => {
-        if (visible) {
-            setLoading(true);
-            setFailed(false);
+        if (!visible) {
+            setOpening(false);
         }
-    }, [visible, document?.uri]);
+    }, [visible]);
 
-    if (!document) return null;
+    if (!document) {
+        return null;
+    }
 
     const file = getFileInfo(document.name);
-    const canPreview = isPreviewable(document) && !failed;
 
-    const handleOpenExternally = async () => {
-        try {
-            const isAvailable = await Sharing.isAvailableAsync();
+    // --------------------------------------------------
+    // MIME TYPE
+    // --------------------------------------------------
 
-            if (isAvailable) {
-                await Sharing.shareAsync(document.uri, {
-                    mimeType: document.mimeType,
-                    dialogTitle: document.name,
-                });
-            } else {
-                await Linking.openURL(document.uri);
-            }
-        } catch (e) {
-            alert("Document open nahi ho paya");
+    const getMimeType = (): string => {
+        if (document.mimeType) {
+            return document.mimeType;
+        }
+
+        const extension = document.name
+            .split(".")
+            .pop()
+            ?.toLowerCase();
+
+        switch (extension) {
+            case "pdf":
+                return "application/pdf";
+
+            case "doc":
+                return "application/msword";
+
+            case "docx":
+                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+            case "xls":
+                return "application/vnd.ms-excel";
+
+            case "xlsx":
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+            case "ppt":
+                return "application/vnd.ms-powerpoint";
+
+            case "pptx":
+                return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+
+            case "txt":
+                return "text/plain";
+
+            case "csv":
+                return "text/csv";
+
+            case "jpg":
+            case "jpeg":
+                return "image/jpeg";
+
+            case "png":
+                return "image/png";
+
+            case "gif":
+                return "image/gif";
+
+            case "webp":
+                return "image/webp";
+
+            default:
+                return "*/*";
         }
     };
+
+    // --------------------------------------------------
+    // DOWNLOAD FILE TO CACHE
+    // --------------------------------------------------
+
+    const downloadFile = async (): Promise<string> => {
+        // Already local
+        if (
+            document.uri.startsWith("file://") ||
+            document.uri.startsWith("content://")
+        ) {
+            console.log(
+                "📁 File already local:",
+                document.uri
+            );
+
+            return document.uri;
+        }
+
+        const safeName = document.name.replace(
+            /[^a-zA-Z0-9._-]/g,
+            "_"
+        );
+
+        const localFile = new File(
+            Paths.cache,
+            safeName
+        );
+
+        console.log("📥 Downloading document...");
+        console.log(
+            "☁️ Cloudinary URL:",
+            document.uri
+        );
+        console.log(
+            "📁 Local URI:",
+            localFile.uri
+        );
+
+        try {
+            if (localFile.exists) {
+                localFile.delete();
+            }
+        } catch (error) {
+            console.log(
+                "⚠️ Cache delete error:",
+                error
+            );
+        }
+
+        const downloadedFile =
+            await File.downloadFileAsync(
+                document.uri,
+                localFile
+            );
+
+        console.log(
+            "✅ Downloaded:",
+            downloadedFile.uri
+        );
+
+        return downloadedFile.uri;
+    };
+
+    // --------------------------------------------------
+    // OPEN / SHARE
+    // --------------------------------------------------
+
+    const handleOpen = async () => {
+        if (opening) {
+            return;
+        }
+
+        try {
+            setOpening(true);
+
+            console.log(
+                "📄 Opening:",
+                document.name
+            );
+
+            const localUri =
+                await downloadFile();
+
+            console.log(
+                "📂 Local file:",
+                localUri
+            );
+
+            const available =
+                await Sharing.isAvailableAsync();
+
+            console.log(
+                "📱 Sharing available:",
+                available
+            );
+
+            if (!available) {
+                Alert.alert(
+                    "Not Available",
+                    "Is device par Open With available nahi hai."
+                );
+
+                return;
+            }
+
+            await Sharing.shareAsync(
+                localUri,
+                {
+                    mimeType: getMimeType(),
+
+                    dialogTitle:
+                        `Open ${document.name}`,
+                }
+            );
+
+            console.log(
+                "✅ Open With sheet opened"
+            );
+        } catch (error: any) {
+            console.log(
+                "❌ Document open error:",
+                error
+            );
+
+            Alert.alert(
+                "Unable to Open",
+                error?.message ||
+                    "Document open nahi ho paya."
+            );
+        } finally {
+            setOpening(false);
+        }
+    };
+
+    // --------------------------------------------------
+    // UI
+    // --------------------------------------------------
 
     return (
         <Modal
@@ -86,97 +253,160 @@ export default function DocumentViewer({ visible, document, onClose }: Props) {
             onRequestClose={onClose}
             statusBarTranslucent
         >
-            <SafeAreaView style={styles.container}>
-                {/* Header */}
+            <SafeAreaView
+                style={styles.container}
+            >
+                {/* HEADER */}
                 <View style={styles.header}>
-                    <Pressable onPress={onClose} hitSlop={12}>
-                        <Ionicons name="close" size={26} color="#111" />
+                    <Pressable
+                        onPress={onClose}
+                        hitSlop={12}
+                    >
+                        <Ionicons
+                            name="close"
+                            size={26}
+                            color="#111"
+                        />
                     </Pressable>
 
-                    <View style={styles.headerText}>
-                        <Text numberOfLines={1} style={styles.title}>
+                    <View
+                        style={styles.headerText}
+                    >
+                        <Text
+                            numberOfLines={1}
+                            style={styles.title}
+                        >
                             {document.name}
                         </Text>
+
                         {!!document.size && (
-                            <Text style={styles.subtitle}>
-                                {formatSize(document.size)}
+                            <Text
+                                style={
+                                    styles.subtitle
+                                }
+                            >
+                                {formatSize(
+                                    document.size
+                                )}
                             </Text>
                         )}
                     </View>
 
-                    <Pressable onPress={handleOpenExternally} hitSlop={12}>
-                        <Ionicons name="share-outline" size={22} color="#111" />
-                    </Pressable>
+                    <View
+                        style={{
+                            width: 26,
+                        }}
+                    />
                 </View>
 
-                {/* Body */}
-                {canPreview ? (
-                    <View style={{ flex: 1 }}>
-                        <WebView
-                            source={{ uri: document.uri }}
-                            style={{ flex: 1 }}
-                            startInLoadingState
-                            onLoadEnd={() => setLoading(false)}
-                            onError={() => {
-                                setFailed(true);
-                                setLoading(false);
-                            }}
+                {/* BODY */}
+                <View style={styles.fallback}>
+                    {/* ICON */}
+                    <View
+                        style={[
+                            styles.fallbackIcon,
+                            {
+                                backgroundColor:
+                                    file.bg,
+                            },
+                        ]}
+                    >
+                        <Ionicons
+                            name={
+                                file.icon as any
+                            }
+                            size={56}
+                            color={file.color}
                         />
-                        {loading && (
-                            <View style={styles.loaderOverlay}>
-                                <ActivityIndicator size="large" color="#20A090" />
-                            </View>
-                        )}
                     </View>
-                ) : (
-                    <View style={styles.fallback}>
-                        <View
-                            style={[
-                                styles.fallbackIcon,
-                                { backgroundColor: file.bg },
-                            ]}
+
+                    {/* NAME */}
+                    <Text
+                        style={
+                            styles.fallbackName
+                        }
+                        numberOfLines={2}
+                    >
+                        {document.name}
+                    </Text>
+
+                    {/* BADGE */}
+                    <View
+                        style={[
+                            styles.badge,
+                            {
+                                backgroundColor:
+                                    file.color,
+                            },
+                        ]}
+                    >
+                        <Text
+                            style={
+                                styles.badgeText
+                            }
                         >
-                            <Ionicons
-                                name={file.icon as any}
-                                size={56}
-                                color={file.color}
+                            {file.badge}
+                        </Text>
+                    </View>
+
+                    {/* SIZE */}
+                    {!!document.size && (
+                        <Text
+                            style={
+                                styles.fallbackSize
+                            }
+                        >
+                            {formatSize(
+                                document.size
+                            )}
+                        </Text>
+                    )}
+
+                    {/* DESCRIPTION */}
+                    <Text
+                        style={
+                            styles.fallbackHint
+                        }
+                    >
+                        File ko phone ke installed
+                        app se open karein.
+                    </Text>
+
+                    {/* OPEN BUTTON */}
+                    <Pressable
+                        style={[
+                            styles.openButton,
+                            opening && {
+                                opacity: 0.7,
+                            },
+                        ]}
+                        onPress={handleOpen}
+                        disabled={opening}
+                    >
+                        {opening ? (
+                            <ActivityIndicator
+                                size="small"
+                                color="#FFF"
                             />
-                        </View>
-
-                        <Text style={styles.fallbackName} numberOfLines={2}>
-                            {document.name}
-                        </Text>
-
-                        <View
-                            style={[
-                                styles.badge,
-                                { backgroundColor: file.color },
-                            ]}
-                        >
-                            <Text style={styles.badgeText}>{file.badge}</Text>
-                        </View>
-
-                        {!!document.size && (
-                            <Text style={styles.fallbackSize}>
-                                {formatSize(document.size)}
-                            </Text>
+                        ) : (
+                            <Ionicons
+                                name="open-outline"
+                                size={18}
+                                color="#FFF"
+                            />
                         )}
 
-                        <Text style={styles.fallbackHint}>
-                            Is file type ki inline preview yaha available nahi hai
-                        </Text>
-
-                        <Pressable
-                            style={styles.openButton}
-                            onPress={handleOpenExternally}
+                        <Text
+                            style={
+                                styles.openButtonText
+                            }
                         >
-                            <Ionicons name="open-outline" size={18} color="#FFF" />
-                            <Text style={styles.openButtonText}>
-                                Open With
-                            </Text>
-                        </Pressable>
-                    </View>
-                )}
+                            {opening
+                                ? "Opening..."
+                                : "Open With"}
+                        </Text>
+                    </Pressable>
+                </View>
             </SafeAreaView>
         </Modal>
     );

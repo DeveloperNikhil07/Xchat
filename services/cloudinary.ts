@@ -1,3 +1,5 @@
+// services/cloudinary.ts
+
 const CLOUD_NAME = "dntldjiba";
 const UPLOAD_PRESET = "neoxchat_upload";
 
@@ -7,50 +9,88 @@ export interface CloudinaryResponse {
     resource_type: string;
     format: string;
     bytes: number;
+    duration?: number;
+    width?: number;
+    height?: number;
 }
+
+export type CloudinaryUploadType =
+    | "image"
+    | "video"
+    | "raw";
 
 export const uploadToCloudinary = async (
     fileUri: string,
-    type: "image" | "video" | "raw" = "image"
+    type: CloudinaryUploadType = "image"
 ): Promise<CloudinaryResponse> => {
     try {
+        console.log("📤 Uploading to Cloudinary...");
+        console.log("Type:", type);
+
         const formData = new FormData();
 
-        formData.append("file", {
-            uri: fileUri,
-            type:
-                type === "image"
-                    ? "image/jpeg"
-                    : type === "video"
-                        ? "video/mp4"
-                        : "application/octet-stream",
-            name:
-                type === "image"
-                    ? "upload.jpg"
-                    : type === "video"
-                        ? "upload.mp4"
-                        : "upload",
-        } as any);
+        let mimeType = "application/octet-stream";
+        let fileName = "upload";
 
-        formData.append("upload_preset", UPLOAD_PRESET);
+        if (type === "image") {
+            mimeType = "image/jpeg";
+            fileName = "upload.jpg";
+        }
 
-        const response = await fetch(
-            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${type}/upload`,
+        if (type === "video") {
+            mimeType = "video/mp4";
+            fileName = "upload.mp4";
+        }
+
+        formData.append(
+            "file",
             {
-                method: "POST",
-                body: formData,
-            }
+                uri: fileUri,
+                type: mimeType,
+                name: fileName,
+            } as any
         );
+
+        formData.append(
+            "upload_preset",
+            UPLOAD_PRESET
+        );
+
+        const endpoint =
+            `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${type}/upload`;
+
+        const response = await fetch(endpoint, {
+            method: "POST",
+            body: formData,
+        });
 
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error?.message || "Upload failed");
+            console.log(
+                "❌ Cloudinary upload failed:",
+                data
+            );
+
+            throw new Error(
+                data?.error?.message ||
+                "Cloudinary upload failed"
+            );
         }
 
+        console.log(
+            "☁️ Cloudinary URL:",
+            data.secure_url
+        );
+
         return data as CloudinaryResponse;
+
     } catch (error) {
-        console.log("Cloudinary Error:", error);
+        console.log(
+            "❌ Cloudinary Error:",
+            error
+        );
+
         throw error;
     }
 };

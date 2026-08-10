@@ -28,6 +28,60 @@ import {
 const MESSAGES_COLLECTION = "messages";
 
 
+// ------------------------------------------------------------------
+// 🔧 FIX: Firestore ka addDoc()/setDoc() "undefined" field allow nahi
+// karta (sirf "null" allow hota hai). Jab hum image bhejte hain to
+// payload mein "video: undefined", "document: undefined" waghera
+// chale jaate hain (kyunki ChatScreen mein optional fields undefined
+// set hote hain) — isi wajah se crash aa raha tha:
+// "Unsupported field value: undefined (found in field video ...)"
+//
+// Ye helper recursively har "undefined" key/value ko object se hata
+// deta hai (nested objects ke andar bhi) send karne se pehle.
+//
+// ⚠️ IMPORTANT: Ye sirf "plain" objects ({ ... }) ke andar recurse
+// karta hai. Firestore ke special sentinel values — serverTimestamp(),
+// increment(), arrayUnion(), arrayRemove(), Timestamp instances —
+// asal mein internally special class-instances hote hain, plain
+// object nahi. Agar hum unke andar bhi recurse karke naya plain
+// object bana dete, to wo apni special "FieldValue" identity kho
+// dete aur Firestore unhe sahi tarah se process nahi kar paata
+// (isi wajah se "createdAt.toDate is not a function" wala bug aaya
+// tha — serverTimestamp() ka sentinel object todh diya gaya tha).
+// Isliye plain object check karke hi recurse karte hain, baaki sab
+// (Timestamp, FieldValue, Date, string, number, etc.) ko as-is
+// chhod dete hain.
+// ------------------------------------------------------------------
+function isPlainObject(value: unknown): value is Record<string, any> {
+    if (value === null || typeof value !== "object") return false;
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
+}
+
+function removeUndefined<T>(value: T): T {
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => removeUndefined(item))
+            .filter((item) => item !== undefined) as unknown as T;
+    }
+
+    if (isPlainObject(value)) {
+        const cleaned: Record<string, any> = {};
+
+        Object.entries(value).forEach(([key, val]) => {
+            if (val === undefined) return; // 👈 undefined field drop
+            cleaned[key] = removeUndefined(val);
+        });
+
+        return cleaned as T;
+    }
+
+    // Timestamp, FieldValue (serverTimestamp/increment/arrayUnion/...),
+    // Date, string, number, boolean, null — sab as-is return karo.
+    return value;
+}
+
+
 // SEND MESSAGE PAYLOAD
 
 export interface SendMessagePayload {
@@ -138,7 +192,6 @@ export const listenMessages = (
                         ),
                         {
                             deliveredTo: arrayUnion(uid),
-                            status: "delivered",
                         }
                     );
                 }
@@ -164,7 +217,7 @@ export const listenMessages = (
 
 export const sendMessage = async (
     chatId: string,
-    data: any
+    data: SendMessagePayload
 ) => {
 
     const messageRef = collection(
@@ -174,13 +227,16 @@ export const sendMessage = async (
         "messages"
     );
 
-    await addDoc(messageRef, {
+    // 🔧 FIX: addDoc se pehle undefined fields clean karo
+    const cleanData = removeUndefined({
         ...data,
         createdAt: serverTimestamp(),
         status: "sent",
         deliveredTo: [],
         seenBy: [],
     });
+
+    await addDoc(messageRef, cleanData);
 
 
     const chatRef = doc(db, "chats", chatId);
@@ -195,12 +251,18 @@ export const sendMessage = async (
         (id: string) => id !== data.senderId
     );
     console.log("SEND MESSAGE CHAT:", chatId);
+
+    // 🔧 FIX: lastMessage.text bhi undefined ho sakta hai (image/video
+    // bhejte waqt text empty string hi hota hai generally, but safe rehna
+    // behtar hai) — isliye ye bhi sanitize kar diya.
+    const lastMessagePayload = removeUndefined({
+        text: data.text,
+        senderId: data.senderId,
+        createdAt: serverTimestamp(),
+    });
+
     await updateDoc(chatRef, {
-        lastMessage: {
-            text: data.text,
-            senderId: data.senderId,
-            createdAt: serverTimestamp(),
-        },
+        lastMessage: lastMessagePayload,
 
         lastMessageTime: serverTimestamp(),
 
@@ -357,11 +419,7 @@ export const markMessagesSeen = async (
         ) {
 
             await updateDoc(item.ref, {
-
                 seenBy: arrayUnion(currentUid),
-
-                status: "seen",
-
             });
 
         }
@@ -394,7 +452,6 @@ export const markMessagesAsSeen = async (
         ) {
             await updateDoc(item.ref, {
                 seenBy: arrayUnion(uid),
-                status: "seen",
             });
         }
     }

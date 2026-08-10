@@ -38,7 +38,7 @@ export interface Message {
     isDeletedForMe?: boolean;
 
     edited?: boolean;
-    editedAt?: string;  
+    editedAt?: string;
 
     reaction?: string;
 
@@ -105,14 +105,11 @@ export interface FirestoreMessage {
     edited?: boolean;
     editedAt?: Timestamp;
 
-    status?:
-    | "sending"
-    | "sent"
-    | "delivered"
-    | "seen";
+    status?: "sent" | "delivered" | "seen";
+    seenBy?: string[];
+
 
     deliveredTo?: string[];
-    seenBy?: string[];
 
     reply?: ReplyMessage;
 

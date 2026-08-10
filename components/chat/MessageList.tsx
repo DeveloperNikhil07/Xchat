@@ -160,19 +160,19 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
         style={{ flex: 1 }}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         keyboardDismissMode="interactive"
+
+        nestedScrollEnabled
         scrollEventThrottle={16}
+
         onScroll={handleScroll}
         onScrollToIndexFailed={handleScrollToIndexFailed}
+
         contentContainerStyle={{
           paddingTop: 12,
-          // 👇 FIX: static "+280" hata diya. Ab real keyboard height
-          // dynamically add hoti hai — keyboard band → sirf chhota buffer
-          // (12px), keyboard khula → uski exact height, taaki messages
-          // kabhi keyboard ke peeche hide na hon aur band hone par bhi
-          // koi extra khaali jagah na bache.
           paddingBottom: bottomInset + keyboardHeight + 12,
         }}
         renderItem={({ item, index }) => {
@@ -240,7 +240,10 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
                 }}
                 onLocationPress={() => onLocationPress?.(item)}
                 onContactPress={() => onContactPress?.(item)}
-                onLongPress={() => onLongPressMessage?.(item)}
+                onLongPress={() => {
+                  console.log("🔥 LONG PRESS TRIGGERED:", item.id);
+                  onLongPressMessage?.(item);
+                }}
                 onReplySwipe={() => onReplyMessage?.(item)}
                 onReplyPress={handleReplyPress}
               />
