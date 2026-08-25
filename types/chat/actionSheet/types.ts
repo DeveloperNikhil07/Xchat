@@ -21,4 +21,5 @@ export interface Props {
     onDelete?: () => void;
     onEdit?: () => void;
     onReaction?: (emoji: string) => void;
-}
+    onOpenEmojiPicker?: () => void;
+}

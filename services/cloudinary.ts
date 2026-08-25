@@ -29,17 +29,25 @@ export const uploadToCloudinary = async (
 
         const formData = new FormData();
 
+        const uriParts = fileUri.split("/");
+        const extractedName = uriParts[uriParts.length - 1] || "upload";
+        const extension = extractedName.split(".").pop()?.toLowerCase();
+
         let mimeType = "application/octet-stream";
-        let fileName = "upload";
+        let fileName = extractedName;
 
         if (type === "image") {
-            mimeType = "image/jpeg";
-            fileName = "upload.jpg";
-        }
-
-        if (type === "video") {
+            mimeType = extension === "png" ? "image/png" : "image/jpeg";
+            if (!fileName.includes(".")) fileName = "upload.jpg";
+        } else if (type === "video") {
             mimeType = "video/mp4";
-            fileName = "upload.mp4";
+            if (!fileName.includes(".")) fileName = "upload.mp4";
+        } else if (extension === "m4a") {
+            mimeType = "audio/m4a";
+        } else if (extension === "mp3") {
+            mimeType = "audio/mpeg";
+        } else if (extension === "pdf") {
+            mimeType = "application/pdf";
         }
 
         formData.append(

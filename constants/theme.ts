@@ -56,6 +56,24 @@ export const Colors = {
   // ---------- Misc ----------
   overlay: "rgba(0,14,8,0.6)",  // Modal / sheet backdrop
   shadow: "rgba(0,0,0,0.12)",
+
+  // ---------- Expo Theme Compatibility ----------
+  light: {
+    text: '#11181C',
+    background: '#fff',
+    tint: tintColorLight,
+    icon: '#687076',
+    tabIconDefault: '#687076',
+    tabIconSelected: tintColorLight,
+  },
+  dark: {
+    text: '#ECEDEE',
+    background: '#151718',
+    tint: tintColorDark,
+    icon: '#9BA1A6',
+    tabIconDefault: '#9BA1A6',
+    tabIconSelected: tintColorDark,
+  },
 };
 
 // Optional: quick gradient tokens (used in logo / splash / highlights)

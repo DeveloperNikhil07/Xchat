@@ -271,12 +271,13 @@ export function listenPendingRequests(
 
 
     (error) => {
-
+      if (error?.code === "permission-denied" || error?.message?.includes("permission-denied")) {
+        return;
+      }
       console.log(
         "Pending request listener error:",
         error.message
       );
-
     }
   );
 
@@ -366,6 +367,11 @@ export const listenRequestStatus = (
       id: doc.id,
       ...doc.data(),
     });
+  }, (error) => {
+    if (error?.code === "permission-denied" || error?.message?.includes("permission-denied")) {
+      return;
+    }
+    console.log("Request status listener error:", error.message);
   });
 };
 

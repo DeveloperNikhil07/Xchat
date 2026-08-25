@@ -137,11 +137,10 @@ export default function MessageBubble({
      */
 
     const longPressGesture = Gesture.LongPress()
-        .minDuration(350)
-        .maxDistance(20)
+        .minDuration(250)
+        .maxDistance(35)
         .onStart(() => {
-            console.log("🔥🔥 MESSAGE LONG PRESS GESTURE");
-
+            console.log("🔥🔥 MESSAGE LONG PRESS GESTURE TRIGGERED");
             if (onLongPress) {
                 runOnJS(onLongPress)();
             }
@@ -154,11 +153,17 @@ export default function MessageBubble({
      */
 
     const replyGesture = Gesture.Pan()
-        .activeOffsetX([10, 999])
-        .failOffsetY([-15, 15])
+        .activeOffsetX([20, 999])   // ✅ sirf right swipe
+        .failOffsetY([-10, 10])     // vertical scroll ko priority
+        .maxPointers(1)
 
         .onUpdate((event) => {
             const x = event.translationX;
+            const y = event.translationY;
+
+            if (Math.abs(y) > Math.abs(x)) {
+                return;
+            }
 
             if (x > 0) {
                 translateX.value = Math.min(x, 90);
@@ -223,21 +228,14 @@ export default function MessageBubble({
                         },
                     ]}
                 >
-
-                    <Pressable
-                        onPress={() => {
-                            console.log("👆 MESSAGE PRESS");
-                        }}
+                    <View
+                        style={[
+                            styles.bubble,
+                            isSender
+                                ? styles.senderBubble
+                                : styles.receiverBubble,
+                        ]}
                     >
-
-                        <View
-                            style={[
-                                styles.bubble,
-                                isSender
-                                    ? styles.senderBubble
-                                    : styles.receiverBubble,
-                            ]}
-                        >
 
                             {deletedForEveryone || isDeletedForMe ? (
 
@@ -401,6 +399,8 @@ export default function MessageBubble({
                                 {isSender && (
                                     <MessageStatus
                                         status={status}
+                                        deliveredTo={deliveredTo}
+                                        seenBy={seenBy}
                                     />
                                 )}
 
@@ -424,8 +424,6 @@ export default function MessageBubble({
                             )}
 
                         </View>
-
-                    </Pressable>
 
                 </Animated.View>
             </GestureDetector>

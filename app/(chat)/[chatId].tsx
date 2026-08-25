@@ -1,7 +1,9 @@
 import DeleteMessageModal from "@/components/chat/actionSheet/DeleteMessageModal";
 import MessageActionSheet from "@/components/chat/actionSheet/MessageActionSheet";
 import AttachmentSheet from "@/components/chat/attachment/AttachmentSheet";
+import useVoiceRecorder from "@/components/chat/audio/AudioRecorder";
 import ChatHeader from "@/components/chat/ChatHeader";
+import ChatMenuPopup from "@/components/chat/ChatMenuPopup";
 import ContactShareSheet, { PickedContact } from "@/components/chat/contact/ContactShareSheet";
 import ContactViewer from "@/components/chat/contact/ContactViewer";
 import DocumentViewer from "@/components/chat/DocumentViewer";
@@ -13,11 +15,20 @@ import MessageList from "@/components/chat/MessageList";
 import RequestActions from "@/components/chat/request/RequestActions";
 import ScrollToBottomButton from "@/components/chat/ScrollToBottomButton";
 import VideoViewer from "@/components/chat/VideoViewer";
+import EmojiPicker from "@/components/Emoji/EmojiPicker";
 import TypingIndicator from "@/components/common/TypingIndicator";
 import ScreenContainer from "@/components/layout/ScreenContainer";
+
 import { db } from "@/config/firebase";
 import { useAuth } from "@/hooks/useAuth";
 import { uploadToCloudinary } from "@/services/cloudinary";
+import {
+    blockUserInChat,
+    ChatDetails,
+    listenChatDetails,
+    toggleMuteChat,
+    unblockUserInChat
+} from "@/services/chat.service";
 import {
     deleteMessageForEveryone,
     deleteMessageForMe,
@@ -38,6 +49,7 @@ import {
     startTyping,
     stopTyping,
 } from "@/services/typing.service";
+import { styles as chatStyles } from "@/styles/ChatScreen.style";
 import { Message, ReplyMessage } from "@/types/chat/message/message";
 import { safeToDate } from "@/utils/firestoreDate";
 import * as Clipboard from "expo-clipboard";
@@ -52,10 +64,9 @@ import {
     AppState,
     FlatList,
     Keyboard,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
     Platform,
-    TouchableWithoutFeedback,
+    Text,
+    TouchableOpacity,
     View
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
@@ -67,8 +78,9 @@ export default function ChatScreen() {
     const listRef = useRef<FlatList<Message>>(null);
     const isChatActiveRef = useRef(false);
     const [showScrollButton, setShowScrollButton] = useState(false);
-    const [inputHeight, setInputHeight] = useState(0);
+    const [inputHeight, setInputHeight] = useState(64);
     const [chatMessages, setChatMessages] = useState<Message[]>([]);
+    const [chatDetails, setChatDetails] = useState<ChatDetails | null>(null);
     const { chatId, name, avatar, openSearch, requestId, type } = useLocalSearchParams<{
         chatId: string;
         name: string;
@@ -102,27 +114,122 @@ export default function ChatScreen() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [editingMessage, setEditingMessage] = useState<Message | null>(null);
     const [uploadingMessages, setUploadingMessages] = useState<Message[]>([]);
+    const [showChatMenu, setShowChatMenu] = useState(false);
+    const [showFullEmojiPicker, setShowFullEmojiPicker] = useState(false);
+
 
     // 👇 naya — keyboard ki actual height track karta hai
     const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    const isBlockedByMe = useMemo(() => {
+        return currentUser?.uid ? (chatDetails?.blockedBy || []).includes(currentUser.uid) : false;
+    }, [chatDetails, currentUser?.uid]);
+
+    const isBlockedByOther = useMemo(() => {
+        return currentUser?.uid ? (chatDetails?.blockedBy || []).some((id) => id !== currentUser.uid) : false;
+    }, [chatDetails, currentUser?.uid]);
+
+    const isMuted = useMemo(() => {
+        return currentUser?.uid ? (chatDetails?.mutedBy || []).includes(currentUser.uid) : false;
+    }, [chatDetails, currentUser?.uid]);
+
+    useEffect(() => {
+        if (!chatId || type === "request") return;
+        const unsub = listenChatDetails(chatId, (details) => {
+            setChatDetails(details);
+        });
+        return unsub;
+    }, [chatId, type]);
+
+    useEffect(() => {
+        if (openSearch === "true") {
+            setIsSearching(true);
+        }
+    }, [openSearch]);
+
+    const handleToggleBlock = async () => {
+        if (!chatId || !currentUser) return;
+        try {
+            if (isBlockedByMe) {
+                await unblockUserInChat(chatId, currentUser.uid);
+                Alert.alert("Unblocked", "Contact has been unblocked.");
+            } else {
+                Alert.alert(
+                    "Block Contact",
+                    "Are you sure you want to block this contact? You will not receive messages from them.",
+                    [
+                        { text: "Cancel", style: "cancel" },
+                        {
+                            text: "Block",
+                            style: "destructive",
+                            onPress: async () => {
+                                await blockUserInChat(chatId, currentUser.uid);
+                                Alert.alert("Blocked", "Contact has been blocked.");
+                            },
+                        },
+                    ]
+                );
+            }
+        } catch (e) {
+            console.log("Block toggle error:", e);
+        }
+    };
+
+    const handleToggleMute = async () => {
+        if (!chatId || !currentUser) return;
+        try {
+            const nowMuted = await toggleMuteChat(chatId, currentUser.uid);
+            Alert.alert(
+                nowMuted ? "Notifications Muted" : "Notifications Unmuted",
+                nowMuted ? "Notifications silenced for this chat." : "Notification alerts enabled."
+            );
+        } catch (e) {
+            console.log("Mute toggle error:", e);
+        }
+    };
+
+    const handleMenu = () => {
+        setShowChatMenu(true);
+    };
 
 
     const liveWatchRef = useRef<ExpoLocation.LocationSubscription | null>(null);
     const liveMessageIdRef = useRef<string | null>(null);
     const liveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const handleSend = async (text: string) => {
-        const message = text.trim();
+    const handleAudioRecorded = async (audioData: {
+        uri: string;
+        name: string;
+        size?: number;
+        duration?: number;
+    }) => {
+        if (!chatId || !currentUser) return;
 
-        if (!chatId || !currentUser || !message) {
-            return;
-        }
-        console.log("SEND CHAT ID:", chatId);
+        let uploadingMessageId: string | null = null;
         try {
+            const tempMessage = createUploadingMessage("audio", {
+                uri: audioData.uri,
+                fileName: audioData.name,
+                fileSize: audioData.size,
+                duration: audioData.duration,
+            });
+            uploadingMessageId = tempMessage.id;
+
+            console.log("📤 Uploading voice recording...");
+            const uploaded = await uploadToCloudinary(audioData.uri, "raw");
+
+            console.log("☁️ Voice recording uploaded:", uploaded.secure_url);
+
             await sendMessage(chatId, {
                 senderId: currentUser.uid,
-                text: message,
-                type: "text",
+                type: "audio",
+                text: "",
+                audio: {
+                    uri: uploaded.secure_url,
+                    name: audioData.name,
+                    size: audioData.size ?? 0,
+                    duration: audioData.duration,
+                },
                 reply: replyMessage
                     ? {
                         sender: replyMessage.sender,
@@ -132,15 +239,85 @@ export default function ChatScreen() {
                     : null,
             });
 
+            if (uploadingMessageId) {
+                removeUploadingMessage(uploadingMessageId);
+            }
             setReplyMessage(null);
-
         } catch (error) {
-            console.log(
-                "Send message error:",
-                error
-            );
+            console.log("❌ Voice upload error:", error);
+            if (uploadingMessageId) {
+                removeUploadingMessage(uploadingMessageId);
+            }
+            Alert.alert("Upload Failed", "Unable to send voice message.");
         }
     };
+
+    const {
+        isRecording,
+        recordingDuration,
+        startRecording,
+        stopRecording,
+        cancelRecording,
+    } = useVoiceRecorder({
+        onRecorded: handleAudioRecorded,
+    });
+
+    const handleSend = (text: string) => {
+        const message = text.trim();
+
+        if (!chatId || !currentUser || !message) {
+            return;
+        }
+
+        const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        const currentReply = replyMessage;
+        setReplyMessage(null);
+
+        const optimisticMessage: Message = {
+            id: tempId,
+            message,
+            type: "text",
+            time: new Date().toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+            }),
+            date: new Date().toISOString(),
+            isSender: true,
+            status: "sending",
+            isStarred: false,
+            reply: currentReply
+                ? {
+                    sender: currentReply.sender,
+                    message: currentReply.message,
+                    messageId: currentReply.messageId,
+                }
+                : undefined,
+        };
+
+        setUploadingMessages((prev) => [...prev, optimisticMessage]);
+
+        sendMessage(chatId, {
+            senderId: currentUser.uid,
+            text: message,
+            type: "text",
+            reply: currentReply
+                ? {
+                    sender: currentReply.sender,
+                    message: currentReply.message,
+                    messageId: currentReply.messageId,
+                }
+                : null,
+        })
+            .then(() => {
+                removeUploadingMessage(tempId);
+            })
+            .catch((error) => {
+                console.log("Send message error:", error);
+                removeUploadingMessage(tempId);
+                Alert.alert("Failed", "Unable to send message.");
+            });
+    };
+
     const createUploadingMessage = (
         type: Message["type"],
         asset: {
@@ -151,21 +328,22 @@ export default function ChatScreen() {
             duration?: number;
         }
     ): Message => {
-
-        const tempId = `uploading-${Date.now()}-${Math.random()}`;
+        const tempId = `uploading-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
         const message: Message = {
             id: tempId,
-
             message: "",
-
             type,
-
-            image:
-                type === "image"
-                    ? asset.uri
-                    : null,
-
+            image: type === "image" ? asset.uri : null,
+            audio:
+                type === "audio"
+                    ? {
+                        uri: asset.uri,
+                        name: asset.fileName || "Voice Message",
+                        size: asset.fileSize,
+                        duration: asset.duration,
+                    }
+                    : undefined,
             video:
                 type === "video"
                     ? {
@@ -174,7 +352,6 @@ export default function ChatScreen() {
                         duration: asset.duration,
                     }
                     : undefined,
-
             document:
                 type === "document"
                     ? {
@@ -184,18 +361,13 @@ export default function ChatScreen() {
                         mimeType: asset.mimeType,
                     }
                     : undefined,
-
             time: new Date().toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
             }),
-
             date: new Date().toISOString(),
-
             isSender: true,
-
             status: "sending",
-
             isStarred: false,
         };
 
@@ -332,15 +504,15 @@ export default function ChatScreen() {
         }
     };
 
-    // 👇 FIX: pehle "offsetY > 250" tha, jo "top se kitna neeche" measure
-    // karta tha — ye ulta tha. Ab "bottom se kitni door hai" calculate
-    // karte hain, jo WhatsApp jaise arrow-button ke liye sahi logic hai.
-    const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const handleScroll = (event: any) => {
+        if (!event?.nativeEvent) return;
         const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
         const distanceFromBottom =
-            contentSize.height - contentOffset.y - layoutMeasurement.height;
+            contentSize.height -
+            contentOffset.y -
+            layoutMeasurement.height;
 
-        setShowScrollButton(distanceFromBottom > 250);
+        setShowScrollButton(distanceFromBottom > 200);
     };
 
     const scrollToBottom = () => {
@@ -959,9 +1131,23 @@ export default function ChatScreen() {
     };
 
     const allMessages = useMemo(() => {
+        const pendingUploads = uploadingMessages.filter((uploadMsg) => {
+            if (uploadMsg.type === "text") {
+                const matchExists = chatMessages.some(
+                    (cm) =>
+                        cm.isSender &&
+                        cm.message === uploadMsg.message &&
+                        cm.type === "text" &&
+                        Math.abs(new Date(cm.date || 0).getTime() - new Date(uploadMsg.date || 0).getTime()) < 30000
+                );
+                return !matchExists;
+            }
+            return true;
+        });
+
         return [
             ...chatMessages,
-            ...uploadingMessages,
+            ...pendingUploads,
         ].sort((a, b) => {
             const aTime = a.date
                 ? new Date(a.date).getTime()
@@ -1068,7 +1254,8 @@ export default function ChatScreen() {
                             : undefined,
                 }));
                 setChatMessages(formatted);
-            }
+            },
+            chatDetails?.disappearing
         );
 
         return unsubscribe;
@@ -1077,6 +1264,7 @@ export default function ChatScreen() {
         chatId,
         type,
         currentUser,
+        chatDetails?.disappearing,
     ]);
     useFocusEffect(
         useCallback(() => {
@@ -1175,124 +1363,181 @@ export default function ChatScreen() {
 
     return (
         <ScreenContainer>
+            <View style={{ flex: 1 }}>
+                <ChatHeader
+                    name={(name as string) || "User"}
+                    image={require("@/assets/images/man.png")}
+                    online
+                    typingUser={typingUser}
+                    isSearching={isSearching}
+                    searchText={searchText}
+                    allowSearch={true}
+                    onSearchChange={(text) => setSearchText(text)}
 
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                    onCloseSearch={() => {
+                        setIsSearching(false);
+                        setSearchText("");
+                        Keyboard.dismiss();
+                    }}
+
+                    onSearch={() => {
+                        setIsSearching(true);
+                    }}
+
+                    onBack={() => router.back()}
+                    onVoiceCall={() => {
+                        Alert.alert("Voice Call", `Calling ${(name as string) || "User"}...`);
+                    }}
+                    onVideoCall={() => {
+                        Alert.alert("Video Call", `Starting video call with ${(name as string) || "User"}...`);
+                    }}
+                    onMenu={handleMenu}
+
+                    onProfilePress={() => {
+                        router.push({
+                            pathname: "/(profile)/[userId]",
+                            params: {
+                                userId: chatId as string,
+                                name: name as string,
+                                avatar: "",
+                                online: "true",
+                                messages: JSON.stringify(chatMessages),
+                            },
+                        });
+                    }}
+                />
+
+                {/* Custom WhatsApp-style dropdown menu */}
+                <ChatMenuPopup
+                    visible={showChatMenu}
+                    onClose={() => setShowChatMenu(false)}
+                    items={[
+                        {
+                            label: isMuted ? "Unmute Notifications" : "Mute Notifications",
+                            icon: isMuted ? "notifications-outline" : "notifications-off-outline",
+                            onPress: handleToggleMute,
+                        },
+                        {
+                            label: isBlockedByMe ? "Unblock Contact" : "Block Contact",
+                            icon: isBlockedByMe ? "checkmark-circle-outline" : "ban-outline",
+                            onPress: handleToggleBlock,
+                            danger: !isBlockedByMe,
+                        },
+                        {
+                            label: "View Contact Info",
+                            icon: "person-outline",
+                            onPress: () => {
+                                router.push({
+                                    pathname: "/(profile)/[userId]",
+                                    params: {
+                                        userId: chatId as string,
+                                        name: name as string,
+                                        avatar: "",
+                                        online: "true",
+                                        messages: JSON.stringify(chatMessages),
+                                    },
+                                });
+                            },
+                        },
+                        {
+                            label: isSearching ? "Close Search" : "Search",
+                            icon: "search-outline",
+                            onPress: () => setIsSearching(true),
+                        },
+                    ]}
+                />
 
                 <View style={{ flex: 1 }}>
-
-                    <ChatHeader
-                        name={(name as string) || "User"}
-                        image={require("@/assets/images/man.png")}
-                        online
-                        typingUser={typingUser}
-                        isSearching={isSearching}
-                        searchText={searchText}
-                        allowSearch={false}
-                        onSearchChange={(text) => setSearchText(text)}
-
-                        onCloseSearch={() => {
-                            setIsSearching(false);
-                            setSearchText("");
-                            Keyboard.dismiss();
-                        }}
-
-                        onSearch={() => {
-                            setIsSearching(true);
-                        }}
-
-                        onBack={() => router.back()}
-                        onVoiceCall={() => { }}
-                        onVideoCall={() => { }}
-                        onMenu={() => { }}
-
-                        onProfilePress={() => {
-                            router.push({
-                                pathname: "/(profile)/[userId]",
-                                params: {
-                                    userId: chatId as string,
-                                    name: name as string,
-                                    avatar: "",
-                                    online: "true",
-                                    messages: JSON.stringify(chatMessages),
-                                },
-                            });
-                        }}
-                    />
-
                     {!isRequest && (
-                        <MessageList
-                            ref={listRef}
-                            messages={filteredMessages}
-                            bottomInset={inputHeight}
-                            keyboardHeight={keyboardHeight}
-                            chatId={chatId}
-                            onScroll={handleScroll}
-                            onLongPressMessage={(message) => {
-                                setSelectedMessage(message);
-                                setShowActionSheet(true);
-                            }}
-                            onImagePress={(image) => {
-                                setSelectedImage(image);
-                                setShowImageViewer(true);
-                            }}
-                            onVideoPress={(uri) => {
-                                setSelectedVideo(uri);
-                                setShowVideoViewer(true);
-                            }}
-                            onDocumentPress={(document) => {
-                                setSelectedDocument(document)
-                                setShowDocumentViewer(true)
-                            }}
-                            onLocationPress={(message) => {
-                                setSelectedLocationMessage(message);
-                                setShowLocationViewer(true);
-                            }}
-                            onContactPress={(message) => {
-                                setSelectedContactMessage(message);
-                                setShowContactViewer(true);
-                            }}
-                            onReplyMessage={(message) => {
-                                setReplyMessage({
-                                    sender: message.isSender
-                                        ? "You"
-                                        : (name as string),
-
-                                    message: message.message,
-
-                                    messageId: message.id,
-                                });
-                            }}
-                        />
+                        <View style={{ flex: 1 }}>
+                            <MessageList
+                                ref={listRef}
+                                messages={filteredMessages}
+                                bottomInset={inputHeight}
+                                keyboardHeight={keyboardHeight}
+                                chatId={chatId}
+                                onScroll={handleScroll}
+                                onLongPressMessage={(message) => {
+                                    setSelectedMessage(message);
+                                    setShowActionSheet(true);
+                                }}
+                                onImagePress={(image) => {
+                                    setSelectedImage(image);
+                                    setShowImageViewer(true);
+                                }}
+                                onVideoPress={(uri) => {
+                                    setSelectedVideo(uri);
+                                    setShowVideoViewer(true);
+                                }}
+                                onDocumentPress={(document) => {
+                                    setSelectedDocument(document);
+                                    setShowDocumentViewer(true);
+                                }}
+                                onLocationPress={(message) => {
+                                    setSelectedLocationMessage(message);
+                                    setShowLocationViewer(true);
+                                }}
+                                onContactPress={(message) => {
+                                    setSelectedContactMessage(message);
+                                    setShowContactViewer(true);
+                                }}
+                                onReplyMessage={(message) => {
+                                    setReplyMessage({
+                                        sender: message.isSender
+                                            ? "You"
+                                            : (name as string),
+                                        message: message.message,
+                                        messageId: message.id,
+                                    });
+                                }}
+                            />
+                        </View>
                     )}
-                    {typingUser && (
-                        <View
-                            style={{
-                                paddingBottom: 6,
-                            }}
-                        >
+
+                    {typingUser && !isRequest && (
+                        <View style={{ paddingBottom: 6 }}>
                             <TypingIndicator />
                         </View>
                     )}
-                    {!isRequest && (
-                        <KeyboardStickyView onLayout={(event) => { setInputHeight(event.nativeEvent.layout.height); }}>
+
+                    {!isRequest && type === "chat" && (
+                        <KeyboardStickyView
+                            onLayout={(event) => {
+                                const height = event.nativeEvent.layout.height;
+                                setInputHeight(height);
+                            }}
+                        >
                             <ScrollToBottomButton
                                 visible={showScrollButton}
                                 onPress={scrollToBottom}
                             />
-                            {type === "chat" && (
+
+                            {isBlockedByMe ? (
+                                <View style={chatStyles.blockedBanner}>
+                                    <Text style={chatStyles.blockedText}>You blocked this contact.</Text>
+                                    <TouchableOpacity onPress={handleToggleBlock} style={chatStyles.unblockBtn}>
+                                        <Text style={chatStyles.unblockBtnText}>Unblock</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : isBlockedByOther ? (
+                                <View style={chatStyles.blockedBanner}>
+                                    <Text style={chatStyles.blockedText}>You cannot send messages to this contact.</Text>
+                                </View>
+                            ) : (
                                 <MessageInput
                                     replyMessage={replyMessage}
                                     setReplyMessage={setReplyMessage}
                                     onSend={handleSend}
-
                                     onTyping={handleTyping}
                                     onStopTyping={handleStopTyping}
-
                                     onEmojiPress={() => { }}
                                     onAttachmentPress={() => setShowAttachment(true)}
                                     onCameraPress={openCamera}
-                                    onVoicePress={() => { }}
-
+                                    onVoicePress={startRecording}
+                                    isRecording={isRecording}
+                                    recordingDuration={recordingDuration}
+                                    onCancelRecording={cancelRecording}
+                                    onStopAndSendRecording={stopRecording}
                                     showEmoji={showEmoji}
                                     setShowEmoji={setShowEmoji}
                                     editingMessage={editingMessage}
@@ -1302,7 +1547,7 @@ export default function ChatScreen() {
                             )}
                         </KeyboardStickyView>
                     )}
-
+                </View>
                     <AttachmentSheet
                         visible={showAttachment}
                         onClose={() => setShowAttachment(false)}
@@ -1372,6 +1617,21 @@ export default function ChatScreen() {
                             if (!selectedMessage) return;
 
                             handleReaction(selectedMessage.id, emoji);
+                        }}
+
+                        onOpenEmojiPicker={() => {
+                            setShowFullEmojiPicker(true);
+                        }}
+                    />
+
+                    {/* Root-level EmojiPicker — avoids nested Modal bug on Android */}
+                    <EmojiPicker
+                        visible={showFullEmojiPicker}
+                        onClose={() => setShowFullEmojiPicker(false)}
+                        onSelect={(emoji) => {
+                            if (!selectedMessage) return;
+                            handleReaction(selectedMessage.id, emoji);
+                            setShowFullEmojiPicker(false);
                         }}
                     />
 
@@ -1484,8 +1744,6 @@ export default function ChatScreen() {
                         />
                     )}
                 </View>
-            </TouchableWithoutFeedback>
-
         </ScreenContainer>
     );
 }

@@ -2,11 +2,14 @@ import Colors from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useRef, useState } from "react";
 import {
+  Keyboard,
+  Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
+import EmojiPicker from "@/components/Emoji/EmojiPicker";
 import { MessageInputProps } from "@/types/chat/MessageInputs/MessageInput";
 import { styles } from "./MessageInput.style";
 import ReplyPreview from "./Reply/ReplyPreview";
@@ -27,7 +30,12 @@ export default function MessageInput({
   onCancelEdit,
   showEmoji,
   setShowEmoji,
-  onEdit
+  onEdit,
+
+  isRecording = false,
+  recordingDuration = 0,
+  onCancelRecording,
+  onStopAndSendRecording,
 }: MessageInputProps) {
   const [message, setMessage] = useState("");
 
@@ -41,7 +49,6 @@ export default function MessageInput({
   }, [editingMessage]);
 
   const handleTyping = (text: string) => {
-    console.log("handleTyping called with text:", text);
     setMessage(text);
 
     if (text.trim().length > 0) {
@@ -59,7 +66,7 @@ export default function MessageInput({
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = () => {
     const text = message.trim();
 
     if (!text) return;
@@ -77,48 +84,30 @@ export default function MessageInput({
     // ================================
 
     if (editingMessage) {
-      await onEdit?.(
-        editingMessage.id,
-        text
-      );
-
+      onEdit?.(editingMessage.id, text);
       setMessage("");
-
       onCancelEdit?.();
-
       return;
     }
 
     // ================================
-    // NORMAL SEND
+    // NORMAL SEND - Optimistic (Instant Clear)
     // ================================
 
-    await onSend?.(text);
-
     setMessage("");
+    onSend?.(text);
   };
 
-  // ================================
-  // CANCEL EDIT
-  // ================================
-
-  const handleCancelEdit = () => {
-    setMessage("");
-
-    onCancelEdit?.();
-
-    onStopTyping?.();
-
-    if (typingTimeout.current) {
-      clearTimeout(typingTimeout.current);
-      typingTimeout.current = null;
-    }
+  const formatDuration = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.inputContainer}>
-        {replyMessage && (
+        {replyMessage && !isRecording && (
           <ReplyPreview
             senderName={replyMessage.sender}
             message={replyMessage.message}
@@ -126,66 +115,34 @@ export default function MessageInput({
           />
         )}
 
-        <View style={styles.inputRow}>
-          {/* Emoji */}
-
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => {
-              setShowEmoji(!showEmoji);
-              onEmojiPress?.();
-            }}
-          >
-            <Ionicons
-              name="happy-outline"
-              size={24}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          {/* Input */}
-
-          <TextInput
-            value={message}
-            onChangeText={handleTyping}
-            placeholder="Type a message..."
-            placeholderTextColor="#999"
-            multiline
-            scrollEnabled
-            textAlignVertical="top"
-            style={styles.input}
-          />
-
-          {/* Attachment */}
-
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={onAttachmentPress}
-          >
-            <Ionicons
-              name="attach"
-              size={22}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
-
-          {/* Camera / Send */}
-
-          {message.trim().length === 0 ? (
+        {isRecording ? (
+          /* Voice Recording Mode */
+          <View style={styles.recordingRow}>
             <TouchableOpacity
-              style={styles.iconButton}
-              onPress={onCameraPress}
+              style={styles.cancelButton}
+              onPress={onCancelRecording}
+              hitSlop={8}
             >
               <Ionicons
-                name="camera-outline"
-                size={24}
-                color={Colors.textSecondary}
+                name="trash-outline"
+                size={20}
+                color="#FF3B30"
               />
             </TouchableOpacity>
-          ) : (
+
+            <View style={styles.recordingInfo}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingTimer}>
+                {formatDuration(recordingDuration)}
+              </Text>
+              <Text style={styles.recordingLabel}>
+                Recording audio...
+              </Text>
+            </View>
+
             <TouchableOpacity
               style={styles.sendButton}
-              onPress={handleSend}
+              onPress={onStopAndSendRecording}
             >
               <Ionicons
                 name="send"
@@ -193,13 +150,80 @@ export default function MessageInput({
                 color="#FFF"
               />
             </TouchableOpacity>
-          )}
-        </View>
+          </View>
+        ) : (
+          /* Normal Text Input Mode */
+          <View style={styles.inputRow}>
+            {/* Emoji */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowEmoji((prev) => !prev);
+                onEmojiPress?.();
+              }}
+            >
+              <Ionicons
+                name="happy-outline"
+                size={24}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {/* Input */}
+            <TextInput
+              value={message}
+              onChangeText={handleTyping}
+              placeholder="message..."
+              placeholderTextColor="#999"
+              multiline
+              scrollEnabled
+              textAlignVertical="top"
+              style={styles.input}
+            />
+
+            {/* Attachment */}
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={onAttachmentPress}
+            >
+              <Ionicons
+                name="attach"
+                size={22}
+                color={Colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {/* Camera / Send */}
+            {message.trim().length === 0 ? (
+              <TouchableOpacity
+                style={styles.iconButton}
+                onPress={onCameraPress}
+              >
+                <Ionicons
+                  name="camera-outline"
+                  size={24}
+                  color={Colors.textSecondary}
+                />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.sendButton}
+                onPress={handleSend}
+              >
+                <Ionicons
+                  name="send"
+                  size={20}
+                  color="#FFF"
+                />
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
       </View>
 
-      {/* Voice */}
-
-      {message.trim().length === 0 && (
+      {/* Voice Button */}
+      {!isRecording && message.trim().length === 0 && (
         <TouchableOpacity
           style={styles.voiceButton}
           onPress={onVoicePress}
@@ -211,6 +235,15 @@ export default function MessageInput({
           />
         </TouchableOpacity>
       )}
+
+      {/* Input Emoji Picker */}
+      <EmojiPicker
+        visible={showEmoji}
+        onClose={() => setShowEmoji(false)}
+        onSelect={(emoji) => {
+          setMessage((prev) => prev + emoji);
+        }}
+      />
     </View>
   );
 }

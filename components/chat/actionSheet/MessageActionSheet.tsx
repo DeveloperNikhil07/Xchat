@@ -16,6 +16,7 @@ export default function MessageActionSheet({
     onDelete,
     onReaction,
     onEdit,
+    onOpenEmojiPicker,
 }: Props) {
     return (
         <Modal
@@ -33,8 +34,13 @@ export default function MessageActionSheet({
                     <View style={styles.reactionContainer}>
                         <MessageReactionBar
                             onSelect={onReaction}
+                            onOpenEmojiPicker={() => {
+                                onClose();
+                                setTimeout(() => onOpenEmojiPicker?.(), 250);
+                            }}
                         />
                     </View>
+
 
                     <View style={styles.actions}>
                         <MessageActionItem

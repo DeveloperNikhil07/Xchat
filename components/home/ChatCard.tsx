@@ -12,6 +12,7 @@ interface Props {
     online?: boolean;
     typing?: boolean;
     voice?: boolean;
+    muted?: boolean;
     onPress?: () => void;
 }
 
@@ -24,6 +25,7 @@ export default function ChatCard({
     online = false,
     typing = false,
     voice = false,
+    muted = false,
     onPress,
 }: Props) {
     return (
@@ -81,9 +83,18 @@ export default function ChatCard({
             {/* Right */}
 
             <View style={styles.right}>
-                <Text style={styles.time}>
-                    {time}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    {muted && (
+                        <Ionicons
+                            name="notifications-off-outline"
+                            size={14}
+                            color="#8696A0"
+                        />
+                    )}
+                    <Text style={styles.time}>
+                        {time}
+                    </Text>
+                </View>
 
                 {unread > 0 ? (
                     <View style={styles.badge}>

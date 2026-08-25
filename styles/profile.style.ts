@@ -8,26 +8,27 @@ export const styles = StyleSheet.create({
     },
 
     scrollContent: {
-        paddingBottom: 40,
+        paddingBottom: 60,
     },
 
     topSection: {
         backgroundColor: Colors.background,
-        paddingTop: 90,
+        paddingTop: 16,
         paddingBottom: 24,
         alignItems: "center",
     },
 
     actionContainer: {
         flexDirection: "row",
-        justifyContent: "space-between",
+        justifyContent: "space-evenly",
         width: "100%",
-        paddingHorizontal: 30,
+        paddingHorizontal: 20,
+        marginTop: 20,
     },
 
     content: {
         paddingHorizontal: 16,
-        paddingTop: 16,
+        paddingTop: 10,
     },
 
     aboutContainer: {
@@ -36,14 +37,18 @@ export const styles = StyleSheet.create({
     },
 
     aboutTitle: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 11,
-        marginBottom: 5,
-        letterSpacing: 0.3,
+        color: "rgba(255,255,255,0.45)",
+        fontSize: 12,
+        fontWeight: "600",
+        marginBottom: 6,
+        letterSpacing: 0.5,
+        textTransform: "uppercase",
     },
 
     aboutText: {
         color: Colors.textOnDark,
-        fontSize: 13.5,
+        fontSize: 15,
+        lineHeight: 22,
+        fontWeight: "400",
     },
 });

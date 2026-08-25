@@ -1,28 +1,17 @@
-import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+﻿import { Ionicons } from "@expo/vector-icons";
+import React from "react";
 import { Pressable, Text, View } from "react-native";
 
-import EmojiPicker from "@/components/Emoji/EmojiPicker";
 import styles from "./MessageReactionBar.style";
 
-const REACTIONS = [
-    "❤️",
-    "👍",
-    "😂",
-    "😮",
-    "😢",
-    "🙏",
-];
+const REACTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
 
 interface Props {
     onSelect?: (emoji: string) => void;
+    onOpenEmojiPicker?: () => void;
 }
 
-export default function MessageReactionBar({
-    onSelect,
-}: Props) {
-    const [showPicker, setShowPicker] = useState(false);
-
+export default function MessageReactionBar({ onSelect, onOpenEmojiPicker }: Props) {
     return (
         <View style={styles.container}>
             {REACTIONS.map((emoji) => (
@@ -30,15 +19,11 @@ export default function MessageReactionBar({
                     key={emoji}
                     style={({ pressed }) => [
                         styles.reactionButton,
-                        pressed && {
-                            transform: [{ scale: 0.92 }],
-                        },
+                        pressed && { transform: [{ scale: 0.92 }] },
                     ]}
                     onPress={() => onSelect?.(emoji)}
                 >
-                    <Text style={styles.emoji}>
-                        {emoji}
-                    </Text>
+                    <Text style={styles.emoji}>{emoji}</Text>
                 </Pressable>
             ))}
 
@@ -46,20 +31,12 @@ export default function MessageReactionBar({
                 style={({ pressed }) => [
                     styles.reactionButton,
                     styles.plusButton,
-                    pressed && {
-                        transform: [{ scale: 0.92 }],
-                    },
+                    pressed && { transform: [{ scale: 0.92 }] },
                 ]}
-                onPress={() => setShowPicker(true)}
+                onPress={onOpenEmojiPicker}
             >
                 <Ionicons name="add" size={20} color="#8696A0" />
             </Pressable>
-
-            <EmojiPicker
-                visible={showPicker}
-                onClose={() => setShowPicker(false)}
-                onSelect={(emoji) => onSelect?.(emoji)}
-            />
         </View>
     );
 }

@@ -110,45 +110,47 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
     // button logic bhi sahi values ke saath kaam kare.
     const handleScroll = useCallback(
       (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        onScroll?.(event);
-
         const { contentOffset, contentSize, layoutMeasurement } =
           event.nativeEvent;
+
         const distanceFromBottom =
-          contentSize.height - contentOffset.y - layoutMeasurement.height;
+          contentSize.height -
+          contentOffset.y -
+          layoutMeasurement.height;
 
         isNearBottomRef.current = distanceFromBottom < 150;
+        onScroll?.(event);
       },
       [onScroll]
     );
 
-    // 👇 FIX: naya chat khulne par (chatId badalne par) flags reset karo,
-    // taaki har chat pehli baar khulte hi bottom pe jump kare, na ki
-    // sirf app-lifetime mein ek hi baar.
+    // 👇 Naya chat khulne par (chatId badalne par) flags reset karo
     useEffect(() => {
       isFirstLoadRef.current = true;
       isNearBottomRef.current = true;
     }, [chatId]);
 
-    // 👇 FIX: yehi missing tha. Chat khulte hi turant last message pe
-    // (bina animation — WhatsApp jaisa instant jump), aur uske baad
-    // jab bhi naya message aaye, sirf tab auto-scroll karo jab user
-    // pehle se bottom ke paas ho, YA message khud bheja ho (sender).
+    // 👇 Chat load ya message aane par auto-scroll
     useEffect(() => {
       if (messages.length === 0) return;
 
       if (isFirstLoadRef.current) {
         isFirstLoadRef.current = false;
-        requestAnimationFrame(() => {
-          internalRef.current?.scrollToEnd({ animated: false });
-        });
+        setTimeout(() => {
+          internalRef.current?.scrollToEnd({
+            animated: false,
+          });
+        }, 150);
         return;
       }
 
       const lastMessage = messages[messages.length - 1];
+
       if (isNearBottomRef.current || lastMessage?.isSender) {
         requestAnimationFrame(() => {
-          internalRef.current?.scrollToEnd({ animated: true });
+          internalRef.current?.scrollToEnd({
+            animated: true,
+          });
         });
       }
     }, [messages.length]);
@@ -160,20 +162,14 @@ const MessageList = forwardRef<FlatList<Message>, MessageListProps>(
         style={{ flex: 1 }}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
-
         keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
-        keyboardDismissMode="interactive"
-
-        nestedScrollEnabled
+        keyboardDismissMode="on-drag"
         scrollEventThrottle={16}
-
         onScroll={handleScroll}
         onScrollToIndexFailed={handleScrollToIndexFailed}
-
         contentContainerStyle={{
           paddingTop: 12,
-          paddingBottom: bottomInset + keyboardHeight + 12,
+          paddingBottom: bottomInset + 12,
         }}
         renderItem={({ item, index }) => {
           const previous = messages[index - 1];

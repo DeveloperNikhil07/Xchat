@@ -19,4 +19,9 @@ export interface MessageInputProps {
     onEdit?: (messageId: string, text: string) => void | Promise<void>;
     showEmoji: boolean;
     setShowEmoji: React.Dispatch<React.SetStateAction<boolean>>;
+
+    isRecording?: boolean;
+    recordingDuration?: number;
+    onCancelRecording?: () => void;
+    onStopAndSendRecording?: () => void;
 }

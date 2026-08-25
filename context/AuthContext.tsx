@@ -27,6 +27,9 @@ import {
     AuthContextType,
 } from "@/types/auth/auth.types";
 
+import { registerForPushNotificationsAsync } from "@/utils/registerPushToken";
+
+
 const AuthContext =
     createContext<AuthContextType | null>(null);
 
@@ -58,6 +61,9 @@ export const AuthProvider = ({
                             await getUserDocument(user.uid);
 
                         setCurrentUser(firestoreUser);
+
+                        // 🔔 Register push token so background notifications work
+                        registerForPushNotificationsAsync(user.uid).catch(() => {});
                     } else {
                         setCurrentUser(null);
                     }

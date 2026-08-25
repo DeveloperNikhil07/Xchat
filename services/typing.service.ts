@@ -137,6 +137,11 @@ export const listenTyping = (
             }
         );
 
+    }, (error) => {
+        if (error?.code === "permission-denied" || error?.message?.includes("permission-denied")) {
+            return;
+        }
+        console.log("Typing listener error:", error.message);
     });
 
 };

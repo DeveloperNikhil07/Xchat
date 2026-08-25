@@ -47,7 +47,7 @@ export const styles = StyleSheet.create({
   input: {
     flex: 1,
 
-    fontSize: 16,
+    fontSize: 15,
     color: Colors.textPrimary,
 
     minHeight: 42,
@@ -95,5 +95,50 @@ export const styles = StyleSheet.create({
     },
 
     elevation: 8,
+  },
+
+  recordingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 54,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+
+  recordingInfo: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    marginLeft: 12,
+  },
+
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF3B30",
+    marginRight: 8,
+  },
+
+  recordingTimer: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FF3B30",
+    marginRight: 8,
+  },
+
+  recordingLabel: {
+    fontSize: 13,
+    color: "#666",
+  },
+
+  cancelButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFE5E5",
   },
 });

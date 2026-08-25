@@ -18,6 +18,8 @@ import {
 
 import { auth, db } from "@/config/firebase";
 
+import { safeToMillis } from "@/utils/firestoreDate";
+
 import {
     FirestoreMessage,
     MessageType,
@@ -134,7 +136,8 @@ export interface SendMessagePayload {
 
 export const listenMessages = (
     chatId: string,
-    callback: (messages: (FirestoreMessage & { isStarred: boolean })[]) => void
+    callback: (messages: (FirestoreMessage & { isStarred: boolean })[]) => void,
+    disappearingDuration?: "24h" | "7days" | "90days" | null
 ) => {
 
     const uid = auth.currentUser?.uid;
@@ -166,6 +169,27 @@ export const listenMessages = (
                 ) {
                     continue;
                 }
+
+                // ⌛ Disappearing Messages Filter
+                if (disappearingDuration && data.createdAt) {
+                    const msgTime = safeToMillis(data.createdAt);
+                    if (msgTime > 0) {
+                        const now = Date.now();
+                        const durationMs =
+                            disappearingDuration === "24h"
+                                ? 24 * 60 * 60 * 1000
+                                : disappearingDuration === "7days"
+                                    ? 7 * 24 * 60 * 60 * 1000
+                                    : disappearingDuration === "90days"
+                                        ? 90 * 24 * 60 * 60 * 1000
+                                        : 0;
+
+                        if (durationMs > 0 && now - msgTime > durationMs) {
+                            continue;
+                        }
+                    }
+                }
+
                 messages.push({
                     id: item.id,
                     ...rest,
@@ -201,6 +225,9 @@ export const listenMessages = (
 
         },
         (error) => {
+            if (error?.code === "permission-denied" || error?.message?.includes("permission-denied")) {
+                return;
+            }
             console.log(
                 "Message listener error:",
                 error.message
@@ -212,6 +239,8 @@ export const listenMessages = (
 };
 
 
+
+import { sendPushNotification } from "@/services/notification.service";
 
 // SEND MESSAGE
 
@@ -247,16 +276,22 @@ export const sendMessage = async (
 
     const chatData = chatSnap.data();
 
-    const receiverId = chatData.participants.find(
+    const receiverId = chatData.participants?.find(
         (id: string) => id !== data.senderId
     );
     console.log("SEND MESSAGE CHAT:", chatId);
 
-    // 🔧 FIX: lastMessage.text bhi undefined ho sakta hai (image/video
-    // bhejte waqt text empty string hi hota hai generally, but safe rehna
-    // behtar hai) — isliye ye bhi sanitize kar diya.
+    // 🔧 FIX: lastMessage.text bhi undefined ho sakta hai
+    let lastMessageText = data.text || "";
+    if (data.type === "image") lastMessageText = "📷 Photo";
+    else if (data.type === "audio") lastMessageText = "🎤 Voice message";
+    else if (data.type === "video") lastMessageText = "🎥 Video";
+    else if (data.type === "document") lastMessageText = `📄 ${data.document?.name || "Document"}`;
+    else if (data.type === "location") lastMessageText = "📍 Location";
+    else if (data.type === "contact") lastMessageText = `👤 Contact: ${data.contact?.name || ""}`;
+
     const lastMessagePayload = removeUndefined({
-        text: data.text,
+        text: lastMessageText,
         senderId: data.senderId,
         createdAt: serverTimestamp(),
     });
@@ -267,7 +302,24 @@ export const sendMessage = async (
         lastMessageTime: serverTimestamp(),
 
         [`unreadCount.${receiverId}`]: increment(1)
-    })
+    });
+
+    // 📲 Trigger push notification in background
+    if (receiverId) {
+        getDoc(doc(db, "users", data.senderId)).then((senderSnap) => {
+            const senderName = senderSnap.exists()
+                ? (senderSnap.data().displayName || senderSnap.data().username || "New Message")
+                : "New Message";
+
+            sendPushNotification({
+                toUserId: receiverId,
+                senderId: data.senderId,
+                title: senderName,
+                body: lastMessageText,
+                chatId,
+            }).catch((e) => console.log("Push send err:", e));
+        }).catch(() => {});
+    }
 
 };
 
@@ -549,5 +601,28 @@ export const toggleMessageStar = async (
             "Toggle Message Star Error:",
             error
         );
+    }
+};
+
+/**
+ * Clear / Delete all messages in a chat for the current user
+ */
+export const clearAllChatMessages = async (chatId: string, uid: string): Promise<void> => {
+    try {
+        if (!chatId || !uid) return;
+        const q = query(collection(db, "chats", chatId, "messages"));
+        const snap = await getDocs(q);
+
+        const promises = snap.docs.map((docSnap) => {
+            return updateDoc(docSnap.ref, {
+                deletedFor: arrayUnion(uid),
+            });
+        });
+
+        await Promise.all(promises);
+        console.log("🧹 All chat messages cleared for user:", uid);
+    } catch (error) {
+        console.log("❌ clearAllChatMessages error:", error);
+        throw error;
     }
 };

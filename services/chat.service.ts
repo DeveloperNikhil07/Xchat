@@ -459,6 +459,8 @@
 
 
 import {
+    arrayRemove,
+    arrayUnion,
     collection,
     doc,
     getDoc,
@@ -467,6 +469,7 @@ import {
     query,
     serverTimestamp,
     setDoc,
+    updateDoc,
     where,
 } from "firebase/firestore";
 
@@ -830,6 +833,9 @@ export const listenChats = (
                         ? safeToMillis(data.createdAt)
                         : 0;
 
+                const isMuted = (data.mutedBy || []).includes(uid);
+                const isBlocked = (data.blockedBy || []).length > 0;
+
                 return {
                     id: item.id,
                     name: user.displayName,
@@ -851,6 +857,8 @@ export const listenChats = (
                     type: "private",
                     time: "",
                     lastMessageTime,
+                    muted: isMuted,
+                    isBlocked,
                 };
             })
         );
@@ -863,6 +871,11 @@ export const listenChats = (
                         b.lastMessageTime - a.lastMessageTime
                 ) as ChatListItem[]
         );
+    }, (error) => {
+        if (error?.code === "permission-denied" || error?.message?.includes("permission-denied")) {
+            return;
+        }
+        console.log("listenUserChats error:", error?.message || error);
     });
 };
 
@@ -931,5 +944,136 @@ export const listenRecentUsers = (
             ) as RecentUser[];
 
         callback(filteredUsers);
+    }, (error) => {
+        if (error?.code === "permission-denied" || error?.message?.includes("permission-denied")) {
+            return;
+        }
+        console.log("listenRecentUsers error:", error?.message || error);
     });
 };
+
+// ------------------------------------------------------
+// Block / Unblock User
+// ------------------------------------------------------
+
+export const blockUserInChat = async (chatId: string, currentUid: string) => {
+    try {
+        const chatRef = doc(db, CHATS, chatId);
+        await updateDoc(chatRef, {
+            blockedBy: arrayUnion(currentUid),
+        });
+        console.log("🚫 User blocked in chat:", chatId);
+    } catch (error) {
+        console.log("❌ Block user error:", error);
+        throw error;
+    }
+};
+
+export const unblockUserInChat = async (chatId: string, currentUid: string) => {
+    try {
+        const chatRef = doc(db, CHATS, chatId);
+        await updateDoc(chatRef, {
+            blockedBy: arrayRemove(currentUid),
+        });
+        console.log("✅ User unblocked in chat:", chatId);
+    } catch (error) {
+        console.log("❌ Unblock user error:", error);
+        throw error;
+    }
+};
+
+// ------------------------------------------------------
+// Mute / Unmute Chat
+// ------------------------------------------------------
+
+export const toggleMuteChat = async (chatId: string, currentUid: string): Promise<boolean> => {
+    try {
+        const chatRef = doc(db, CHATS, chatId);
+        const snap = await getDoc(chatRef);
+        if (!snap.exists()) return false;
+
+        const data = snap.data();
+        const mutedBy: string[] = data.mutedBy || [];
+        const isMuted = mutedBy.includes(currentUid);
+
+        await updateDoc(chatRef, {
+            mutedBy: isMuted ? arrayRemove(currentUid) : arrayUnion(currentUid),
+        });
+
+        console.log(isMuted ? "🔔 Chat unmuted" : "🔕 Chat muted");
+        return !isMuted;
+    } catch (error) {
+        console.log("❌ Toggle mute error:", error);
+        throw error;
+    }
+};
+
+// ------------------------------------------------------
+// Listen Chat Details (Realtime for blockedBy, mutedBy)
+// ------------------------------------------------------
+
+export interface ChatDetails {
+    id: string;
+    participants: string[];
+    blockedBy: string[];
+    mutedBy: string[];
+    isGroup?: boolean;
+    disappearing?: "24h" | "7days" | "90days" | null;
+}
+
+export const listenChatDetails = (
+    chatId: string,
+    callback: (details: ChatDetails | null) => void
+) => {
+    if (!chatId) {
+        callback(null);
+        return () => {};
+    }
+
+    const chatRef = doc(db, CHATS, chatId);
+    return onSnapshot(
+        chatRef,
+        (snap) => {
+            if (!snap.exists()) {
+                callback(null);
+                return;
+            }
+            const data = snap.data();
+            callback({
+                id: snap.id,
+                participants: data.participants || [],
+                blockedBy: data.blockedBy || [],
+                mutedBy: data.mutedBy || [],
+                isGroup: data.isGroup || false,
+                disappearing: data.disappearing ?? null,
+            });
+        },
+        (error) => {
+            if (error?.code === "permission-denied" || error?.message?.includes("permission-denied")) {
+                return;
+            }
+            console.log("Chat details listener error:", error.message);
+        }
+    );
+};
+
+// ------------------------------------------------------
+// Set Disappearing Messages Duration
+// ------------------------------------------------------
+
+export const setDisappearingMessages = async (
+    chatId: string,
+    duration: "24h" | "7days" | "90days" | null
+): Promise<void> => {
+    try {
+        if (!chatId) return;
+        const chatRef = doc(db, CHATS, chatId);
+        await updateDoc(chatRef, {
+            disappearing: duration,
+        });
+        console.log("⏳ Disappearing messages set to:", duration ?? "Off");
+    } catch (error) {
+        console.log("❌ setDisappearingMessages error:", error);
+        throw error;
+    }
+};

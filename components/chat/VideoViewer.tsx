@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect } from "react";
-import { Modal, Pressable, SafeAreaView, View } from "react-native";
+import { Modal, Pressable, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 
 import styles from "./VideoViewer.style";
 

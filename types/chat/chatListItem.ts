@@ -16,4 +16,6 @@ export interface ChatListItem {
     unreadCount?:number;
     type: "private" | "group" | "request" | "personal";
     photoURL?: string;
+    muted?: boolean;
+    isBlocked?: boolean;
 }
